@@ -1,6 +1,6 @@
 # xk6-streamloader
 
-A k6 extension for efficiently loading large JSON arrays of HTTP traffic samples from disk, using streaming and minimal memory.
+A k6 extension for efficiently loading large JSON arrays or newline-delimited JSON (NDJSON) of HTTP traffic samples from disk, using streaming and minimal intermediate memory.
 
 ## Build
 
@@ -36,14 +36,22 @@ make test-k6
 import streamloader from 'k6/x/streamloader';
 
 export default function () {
+    // Load samples from a standard JSON array or NDJSON file
     const samples = streamloader.loadSamples('samples.json');
-    // Use samples in your test logic
+    // samples is an Array of plain JS objects with the original JSON keys
+    // e.g. samples[0].requestURI, samples[0].headers["A"], etc.
 }
 ```
 
+## Supported formats
+
+- **JSON array**: a top-level `[...]` containing objects
+- **NDJSON**: one JSON object per line, newline-separated
+
 ## Files
+
 - `streamloader.go`: Extension source code
 - `streamloader_test.go`: Go unit tests
 - `streamloader_k6_test.js`: k6 JS test script
-- `samples.json`: Example data for tests
 - `Makefile`: Build and test automation
+- Example test data files (`samples.json`, `bad.json`, `empty.json`, `large.json`) in the `testdata/` directory
