@@ -54,4 +54,4 @@ export default function () {
 - `streamloader_test.go`: Go unit tests
 - `streamloader_k6_test.js`: k6 JS test script
 - `Makefile`: Build and test automation
-- Example test data files (`samples.json`, `bad.json`, `empty.json`, `large.json`) in the `testdata/` directory
+- Example test data files (`samples.json`, `bad.json`, `empty.json`, `large.json`) are in the project root
