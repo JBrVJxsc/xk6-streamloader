@@ -13,11 +13,15 @@ import (
 
 // StreamLoader is the k6/x/streamloader module.
 // It provides LoadJSON for reading large JSON files efficiently
-// using a small buffer and supporting standard JSON arrays or NDJSON.
+// using a small buffer and supporting standard JSON arrays, NDJSON, or JSON objects.
 type StreamLoader struct{}
 
 // LoadJSON opens the given file, streams and parses its JSON content into a slice of generic maps.
 // By returning map[string]interface{}, we preserve the original JSON key names exactly as-is.
+// Supports three formats:
+// 1. JSON array: [{...}, {...}]
+// 2. NDJSON: {...}\n{...}\n
+// 3. JSON object: {"key1": {...}, "key2": {...}} (converted to array with keys preserved)
 func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 	// 1) Open file
 	file, err := os.Open(filePath)
@@ -46,7 +50,8 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 
 	var objects []map[string]any
 
-	if firstByte == '[' {
+	switch firstByte {
+	case '[':
 		// Standard JSON array format
 		dec := json.NewDecoder(reader)
 
@@ -72,7 +77,31 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 		if _, err := dec.Token(); err != nil {
 			return nil, err
 		}
-	} else {
+	case '{':
+		// JSON object format - convert to array of objects
+		dec := json.NewDecoder(reader)
+
+		var objMap map[string]any
+		if err := dec.Decode(&objMap); err != nil {
+			return nil, err
+		}
+
+		// Convert object to array of objects, preserving keys
+		for key, value := range objMap {
+			if obj, ok := value.(map[string]any); ok {
+				// Add the key as a special field to preserve it
+				obj["_key"] = key
+				objects = append(objects, obj)
+			} else {
+				// If the value is not an object, create one with the value
+				obj := map[string]any{
+					"_key":   key,
+					"_value": value,
+				}
+				objects = append(objects, obj)
+			}
+		}
+	default:
 		// Newline-delimited JSON (NDJSON) format
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {

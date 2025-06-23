@@ -1,6 +1,6 @@
 # xk6-streamloader
 
-A k6 extension for efficiently loading large JSON arrays or newline-delimited JSON (NDJSON) of objects from disk, using streaming and minimal intermediate memory.
+A k6 extension for efficiently loading large JSON arrays, newline-delimited JSON (NDJSON), or top-level JSON objects from disk, using streaming and minimal intermediate memory.
 
 ## Build
 
@@ -36,10 +36,18 @@ make test-k6
 import streamloader from 'k6/x/streamloader';
 
 export default function () {
-    // Load objects from a standard JSON array or NDJSON file
+    // Load objects from a standard JSON array, NDJSON file, or top-level object
     const objects = streamloader.loadJSON('samples.json');
     // objects is an Array of plain JS objects with the original JSON keys
     // e.g. objects[0].requestURI, objects[0].headers["A"], etc.
+
+    // If loading a top-level object (object.json):
+    // {
+    //   "user1": { ... },
+    //   "user2": { ... }
+    // }
+    // The result will be:
+    // [ { ...user1 fields..., _key: "user1" }, { ...user2 fields..., _key: "user2" } ]
 }
 ```
 
@@ -47,6 +55,7 @@ export default function () {
 
 - **JSON array**: a top-level `[...]` containing objects
 - **NDJSON**: one JSON object per line, newline-separated
+- **JSON object**: a top-level `{...}` with key-value pairs; each value is converted to an object in the result array, with the original key preserved as a `_key` property
 
 ## Files
 
@@ -57,6 +66,7 @@ export default function () {
 - Example test data files:
   - `samples.json`: Basic JSON array with simple objects
   - `complex.json`: Complex nested JSON structures with various data types
+  - `object.json`: Top-level JSON object with key-value pairs
   - `bad.json`: Invalid JSON for error testing
   - `empty.json`: Empty JSON array
   - `large.json`: Large JSON array with 1000 objects

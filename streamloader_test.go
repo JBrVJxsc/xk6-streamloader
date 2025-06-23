@@ -494,3 +494,184 @@ func TestLoadJSON_ComplexStructure(t *testing.T) {
 		t.Errorf("expected analytics false, got %v", dataSharing1["analytics"])
 	}
 }
+
+func TestLoadJSON_ObjectFormat(t *testing.T) {
+	jsonData := `{
+		"user1": {"method": "GET", "requestURI": "/user1", "headers": {"A": "B"}, "content": "user1_data"},
+		"user2": {"method": "POST", "requestURI": "/user2", "headers": {"C": "D"}, "content": "user2_data"},
+		"user3": {"method": "PUT", "requestURI": "/user3", "headers": {"E": "F"}, "content": "user3_data"}
+	}`
+
+	tmpfile, err := os.CreateTemp("", "objects-object-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	objects, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+
+	if len(objects) != 3 {
+		t.Fatalf("expected 3 objects, got %d", len(objects))
+	}
+
+	// Test first object (user1)
+	o0 := objects[0]
+	if key, ok := o0["_key"].(string); !ok || key != "user1" {
+		t.Errorf("expected _key user1, got %v", o0["_key"])
+	}
+	if method, ok := o0["method"].(string); !ok || method != "GET" {
+		t.Errorf("expected method GET, got %v", o0["method"])
+	}
+	if uri, ok := o0["requestURI"].(string); !ok || uri != "/user1" {
+		t.Errorf("expected requestURI /user1, got %v", o0["requestURI"])
+	}
+	h, ok := o0["headers"].(map[string]interface{})
+	if !ok || h["A"].(string) != "B" {
+		t.Errorf("expected header A:B, got %v", o0["headers"])
+	}
+	if content, ok := o0["content"].(string); !ok || content != "user1_data" {
+		t.Errorf("expected content user1_data, got %v", o0["content"])
+	}
+
+	// Test second object (user2)
+	o1 := objects[1]
+	if key, ok := o1["_key"].(string); !ok || key != "user2" {
+		t.Errorf("expected _key user2, got %v", o1["_key"])
+	}
+	if method, ok := o1["method"].(string); !ok || method != "POST" {
+		t.Errorf("expected method POST, got %v", o1["method"])
+	}
+	if uri, ok := o1["requestURI"].(string); !ok || uri != "/user2" {
+		t.Errorf("expected requestURI /user2, got %v", o1["requestURI"])
+	}
+	h2, ok := o1["headers"].(map[string]interface{})
+	if !ok || h2["C"].(string) != "D" {
+		t.Errorf("expected header C:D, got %v", o1["headers"])
+	}
+	if content, ok := o1["content"].(string); !ok || content != "user2_data" {
+		t.Errorf("expected content user2_data, got %v", o1["content"])
+	}
+
+	// Test third object (user3)
+	o2 := objects[2]
+	if key, ok := o2["_key"].(string); !ok || key != "user3" {
+		t.Errorf("expected _key user3, got %v", o2["_key"])
+	}
+	if method, ok := o2["method"].(string); !ok || method != "PUT" {
+		t.Errorf("expected method PUT, got %v", o2["method"])
+	}
+	if uri, ok := o2["requestURI"].(string); !ok || uri != "/user3" {
+		t.Errorf("expected requestURI /user3, got %v", o2["requestURI"])
+	}
+	h3, ok := o2["headers"].(map[string]interface{})
+	if !ok || h3["E"].(string) != "F" {
+		t.Errorf("expected header E:F, got %v", o2["headers"])
+	}
+	if content, ok := o2["content"].(string); !ok || content != "user3_data" {
+		t.Errorf("expected content user3_data, got %v", o2["content"])
+	}
+}
+
+func TestLoadJSON_ObjectFormatWithNonObjectValues(t *testing.T) {
+	jsonData := `{
+		"string_value": "hello world",
+		"number_value": 42,
+		"boolean_value": true,
+		"null_value": null,
+		"array_value": [1, 2, 3],
+		"object_value": {"nested": "data"}
+	}`
+
+	tmpfile, err := os.CreateTemp("", "objects-mixed-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	objects, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+
+	if len(objects) != 6 {
+		t.Fatalf("expected 6 objects, got %d", len(objects))
+	}
+
+	// Test string value
+	foundString := false
+	for _, obj := range objects {
+		if key, ok := obj["_key"].(string); ok && key == "string_value" {
+			if value, ok := obj["_value"].(string); !ok || value != "hello world" {
+				t.Errorf("expected _value hello world, got %v", obj["_value"])
+			}
+			foundString = true
+			break
+		}
+	}
+	if !foundString {
+		t.Error("did not find string_value object")
+	}
+
+	// Test number value
+	foundNumber := false
+	for _, obj := range objects {
+		if key, ok := obj["_key"].(string); ok && key == "number_value" {
+			if value, ok := obj["_value"].(float64); !ok || value != 42 {
+				t.Errorf("expected _value 42, got %v", obj["_value"])
+			}
+			foundNumber = true
+			break
+		}
+	}
+	if !foundNumber {
+		t.Error("did not find number_value object")
+	}
+
+	// Test boolean value
+	foundBoolean := false
+	for _, obj := range objects {
+		if key, ok := obj["_key"].(string); ok && key == "boolean_value" {
+			if value, ok := obj["_value"].(bool); !ok || !value {
+				t.Errorf("expected _value true, got %v", obj["_value"])
+			}
+			foundBoolean = true
+			break
+		}
+	}
+	if !foundBoolean {
+		t.Error("did not find boolean_value object")
+	}
+
+	// Test object value (should not have _value field)
+	foundObject := false
+	for _, obj := range objects {
+		if key, ok := obj["_key"].(string); ok && key == "object_value" {
+			if _, hasValue := obj["_value"]; hasValue {
+				t.Error("object_value should not have _value field")
+			}
+			if nested, ok := obj["nested"].(string); !ok || nested != "data" {
+				t.Errorf("expected nested data, got %v", obj["nested"])
+			}
+			foundObject = true
+			break
+		}
+	}
+	if !foundObject {
+		t.Error("did not find object_value object")
+	}
+}

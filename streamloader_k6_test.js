@@ -212,4 +212,58 @@ export default function () {
         'third object second allowed ip': (s) => s[2].settings.security.allowed_ips[1] === '10.0.0.50',
         'third object third allowed ip': (s) => s[2].settings.security.allowed_ips[2] === '172.16.0.1',
     });
+
+    // 7. Object JSON format test
+    const objectObjects = streamloader.loadJSON('object.json');
+    console.log('objectObjects length:', objectObjects.length);
+    console.log('objectObjects[0]:', JSON.stringify(objectObjects[0]));
+    
+    check(objectObjects, {
+        'object JSON array length': (s) => s.length === 3,
+        
+        // Test object keys are preserved
+        'first object has _key': (s) => s[0]._key === 'user1' || s[0]._key === 'user2' || s[0]._key === 'user3',
+        'second object has _key': (s) => s[1]._key === 'user1' || s[1]._key === 'user2' || s[1]._key === 'user3',
+        'third object has _key': (s) => s[2]._key === 'user1' || s[2]._key === 'user2' || s[2]._key === 'user3',
+        
+        // Test all objects have unique keys
+        'all objects have unique keys': (s) => {
+            const keys = s.map(obj => obj._key);
+            return keys.length === new Set(keys).size;
+        },
+        
+        // Test object properties are preserved
+        'objects have method property': (s) => s.every(obj => obj.method !== undefined),
+        'objects have requestURI property': (s) => s.every(obj => obj.requestURI !== undefined),
+        'objects have headers property': (s) => s.every(obj => obj.headers !== undefined),
+        'objects have content property': (s) => s.every(obj => obj.content !== undefined),
+        
+        // Test specific object values
+        'user1 object has correct data': (s) => {
+            const user1 = s.find(obj => obj._key === 'user1');
+            return user1 && user1.method === 'GET' && user1.requestURI === '/user1' && user1.content === 'user1_data';
+        },
+        'user2 object has correct data': (s) => {
+            const user2 = s.find(obj => obj._key === 'user2');
+            return user2 && user2.method === 'POST' && user2.requestURI === '/user2' && user2.content === 'user2_data';
+        },
+        'user3 object has correct data': (s) => {
+            const user3 = s.find(obj => obj._key === 'user3');
+            return user3 && user3.method === 'PUT' && user3.requestURI === '/user3' && user3.content === 'user3_data';
+        },
+        
+        // Test headers are preserved
+        'user1 headers': (s) => {
+            const user1 = s.find(obj => obj._key === 'user1');
+            return user1 && user1.headers.A === 'B';
+        },
+        'user2 headers': (s) => {
+            const user2 = s.find(obj => obj._key === 'user2');
+            return user2 && user2.headers.C === 'D';
+        },
+        'user3 headers': (s) => {
+            const user3 = s.find(obj => obj._key === 'user3');
+            return user3 && user3.headers.E === 'F';
+        },
+    });
 } 
