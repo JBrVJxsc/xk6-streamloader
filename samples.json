@@ -1,0 +1,4 @@
+[
+  {"method": "GET", "requestURI": "/foo", "headers": {"A": "B"}, "content": "abc"},
+  {"method": "POST", "requestURI": "/bar", "headers": {"C": "D"}, "content": "def"}
+] 
