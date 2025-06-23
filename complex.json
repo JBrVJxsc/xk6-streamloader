@@ -1,0 +1,243 @@
+[
+  {
+    "id": 1,
+    "user": {
+      "name": "Alice Johnson",
+      "email": "alice@example.com",
+      "profile": {
+        "age": 30,
+        "location": {
+          "city": "New York",
+          "country": "USA",
+          "coordinates": {
+            "lat": 40.7128,
+            "lng": -74.0060
+          }
+        },
+        "preferences": {
+          "theme": "dark",
+          "notifications": {
+            "email": true,
+            "push": false,
+            "sms": true
+          },
+          "languages": ["en", "es", "fr"]
+        }
+      },
+      "roles": ["admin", "user"],
+      "metadata": {
+        "created_at": "2023-01-15T10:30:00Z",
+        "last_login": "2024-01-20T14:45:00Z",
+        "login_count": 156
+      }
+    },
+    "orders": [
+      {
+        "order_id": "ORD-001",
+        "items": [
+          {
+            "product_id": "PROD-123",
+            "name": "Laptop",
+            "price": 1299.99,
+            "quantity": 1,
+            "specifications": {
+              "cpu": "Intel i7",
+              "ram": "16GB",
+              "storage": "512GB SSD"
+            }
+          },
+          {
+            "product_id": "PROD-456",
+            "name": "Mouse",
+            "price": 29.99,
+            "quantity": 2,
+            "specifications": {
+              "type": "Wireless",
+              "dpi": 1600
+            }
+          }
+        ],
+        "shipping": {
+          "address": {
+            "street": "123 Main St",
+            "city": "New York",
+            "state": "NY",
+            "zip": "10001"
+          },
+          "method": "express",
+          "tracking": {
+            "number": "TRK-789456",
+            "status": "delivered",
+            "events": [
+              {
+                "timestamp": "2024-01-18T09:00:00Z",
+                "status": "shipped",
+                "location": "Warehouse"
+              },
+              {
+                "timestamp": "2024-01-19T14:30:00Z",
+                "status": "out_for_delivery",
+                "location": "Local Facility"
+              },
+              {
+                "timestamp": "2024-01-19T16:45:00Z",
+                "status": "delivered",
+                "location": "Customer Address"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "settings": {
+      "privacy": {
+        "profile_visibility": "public",
+        "data_sharing": {
+          "analytics": true,
+          "marketing": false,
+          "third_party": false
+        }
+      },
+      "security": {
+        "two_factor": true,
+        "session_timeout": 3600,
+        "allowed_ips": ["192.168.1.1", "10.0.0.1"]
+      }
+    }
+  },
+  {
+    "id": 2,
+    "user": {
+      "name": "Bob Smith",
+      "email": "bob@example.com",
+      "profile": {
+        "age": 25,
+        "location": {
+          "city": "Los Angeles",
+          "country": "USA",
+          "coordinates": {
+            "lat": 34.0522,
+            "lng": -118.2437
+          }
+        },
+        "preferences": {
+          "theme": "light",
+          "notifications": {
+            "email": false,
+            "push": true,
+            "sms": false
+          },
+          "languages": ["en"]
+        }
+      },
+      "roles": ["user"],
+      "metadata": {
+        "created_at": "2023-06-10T08:15:00Z",
+        "last_login": "2024-01-21T11:20:00Z",
+        "login_count": 89
+      }
+    },
+    "orders": [],
+    "settings": {
+      "privacy": {
+        "profile_visibility": "private",
+        "data_sharing": {
+          "analytics": false,
+          "marketing": false,
+          "third_party": false
+        }
+      },
+      "security": {
+        "two_factor": false,
+        "session_timeout": 1800,
+        "allowed_ips": []
+      }
+    }
+  },
+  {
+    "id": 3,
+    "user": {
+      "name": "Carol Davis",
+      "email": "carol@example.com",
+      "profile": {
+        "age": 35,
+        "location": {
+          "city": "Chicago",
+          "country": "USA",
+          "coordinates": {
+            "lat": 41.8781,
+            "lng": -87.6298
+          }
+        },
+        "preferences": {
+          "theme": "auto",
+          "notifications": {
+            "email": true,
+            "push": true,
+            "sms": true
+          },
+          "languages": ["en", "de"]
+        }
+      },
+      "roles": ["user", "moderator"],
+      "metadata": {
+        "created_at": "2022-12-05T16:45:00Z",
+        "last_login": "2024-01-21T09:30:00Z",
+        "login_count": 234
+      }
+    },
+    "orders": [
+      {
+        "order_id": "ORD-002",
+        "items": [
+          {
+            "product_id": "PROD-789",
+            "name": "Headphones",
+            "price": 199.99,
+            "quantity": 1,
+            "specifications": {
+              "type": "Bluetooth",
+              "battery_life": "20 hours",
+              "noise_cancellation": true
+            }
+          }
+        ],
+        "shipping": {
+          "address": {
+            "street": "456 Oak Ave",
+            "city": "Chicago",
+            "state": "IL",
+            "zip": "60601"
+          },
+          "method": "standard",
+          "tracking": {
+            "number": "TRK-123789",
+            "status": "in_transit",
+            "events": [
+              {
+                "timestamp": "2024-01-20T10:00:00Z",
+                "status": "shipped",
+                "location": "Warehouse"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "settings": {
+      "privacy": {
+        "profile_visibility": "friends",
+        "data_sharing": {
+          "analytics": true,
+          "marketing": true,
+          "third_party": false
+        }
+      },
+      "security": {
+        "two_factor": true,
+        "session_timeout": 7200,
+        "allowed_ips": ["192.168.1.100", "10.0.0.50", "172.16.0.1"]
+      }
+    }
+  }
+] 

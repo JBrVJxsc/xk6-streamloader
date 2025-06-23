@@ -174,3 +174,323 @@ func TestLoadJSON_WrongFieldName(t *testing.T) {
 		t.Errorf("expected request_uri key with value /foo, got %v", v)
 	}
 }
+
+func TestLoadJSON_ComplexStructure(t *testing.T) {
+	jsonData := `[
+		{
+			"id": 1,
+			"user": {
+				"name": "Alice Johnson",
+				"email": "alice@example.com",
+				"profile": {
+					"age": 30,
+					"location": {
+						"city": "New York",
+						"country": "USA",
+						"coordinates": {
+							"lat": 40.7128,
+							"lng": -74.0060
+						}
+					},
+					"preferences": {
+						"theme": "dark",
+						"notifications": {
+							"email": true,
+							"push": false,
+							"sms": true
+						},
+						"languages": ["en", "es", "fr"]
+					}
+				},
+				"roles": ["admin", "user"],
+				"metadata": {
+					"created_at": "2023-01-15T10:30:00Z",
+					"last_login": "2024-01-20T14:45:00Z",
+					"login_count": 156
+				}
+			},
+			"orders": [
+				{
+					"order_id": "ORD-001",
+					"items": [
+						{
+							"product_id": "PROD-123",
+							"name": "Laptop",
+							"price": 1299.99,
+							"quantity": 1,
+							"specifications": {
+								"cpu": "Intel i7",
+								"ram": "16GB",
+								"storage": "512GB SSD"
+							}
+						}
+					],
+					"shipping": {
+						"address": {
+							"street": "123 Main St",
+							"city": "New York",
+							"state": "NY",
+							"zip": "10001"
+						},
+						"method": "express",
+						"tracking": {
+							"number": "TRK-789456",
+							"status": "delivered",
+							"events": [
+								{
+									"timestamp": "2024-01-18T09:00:00Z",
+									"status": "shipped",
+									"location": "Warehouse"
+								}
+							]
+						}
+					}
+				}
+			],
+			"settings": {
+				"privacy": {
+					"profile_visibility": "public",
+					"data_sharing": {
+						"analytics": true,
+						"marketing": false,
+						"third_party": false
+					}
+				},
+				"security": {
+					"two_factor": true,
+					"session_timeout": 3600,
+					"allowed_ips": ["192.168.1.1", "10.0.0.1"]
+				}
+			}
+		},
+		{
+			"id": 2,
+			"user": {
+				"name": "Bob Smith",
+				"email": "bob@example.com",
+				"profile": {
+					"age": 25,
+					"location": {
+						"city": "Los Angeles",
+						"country": "USA",
+						"coordinates": {
+							"lat": 34.0522,
+							"lng": -118.2437
+						}
+					},
+					"preferences": {
+						"theme": "light",
+						"notifications": {
+							"email": false,
+							"push": true,
+							"sms": false
+						},
+						"languages": ["en"]
+					}
+				},
+				"roles": ["user"],
+				"metadata": {
+					"created_at": "2023-06-10T08:15:00Z",
+					"last_login": "2024-01-21T11:20:00Z",
+					"login_count": 89
+				}
+			},
+			"orders": [],
+			"settings": {
+				"privacy": {
+					"profile_visibility": "private",
+					"data_sharing": {
+						"analytics": false,
+						"marketing": false,
+						"third_party": false
+					}
+				},
+				"security": {
+					"two_factor": false,
+					"session_timeout": 1800,
+					"allowed_ips": []
+				}
+			}
+		}
+	]`
+
+	tmpfile, err := os.CreateTemp("", "objects-complex-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	objects, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+
+	if len(objects) != 2 {
+		t.Fatalf("expected 2 objects, got %d", len(objects))
+	}
+
+	// Test first object with complex nested structure
+	o0 := objects[0]
+
+	// Test top-level fields
+	if id, ok := o0["id"].(float64); !ok || id != 1 {
+		t.Errorf("expected id 1, got %v", o0["id"])
+	}
+
+	// Test nested user object
+	user, ok := o0["user"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected user to be a map, got %T", o0["user"])
+	}
+	if name, ok := user["name"].(string); !ok || name != "Alice Johnson" {
+		t.Errorf("expected user name Alice Johnson, got %v", user["name"])
+	}
+	if email, ok := user["email"].(string); !ok || email != "alice@example.com" {
+		t.Errorf("expected user email alice@example.com, got %v", user["email"])
+	}
+
+	// Test deeply nested profile structure
+	profile, ok := user["profile"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected profile to be a map, got %T", user["profile"])
+	}
+	if age, ok := profile["age"].(float64); !ok || age != 30 {
+		t.Errorf("expected age 30, got %v", profile["age"])
+	}
+
+	// Test location coordinates
+	location, ok := profile["location"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected location to be a map, got %T", profile["location"])
+	}
+	coordinates, ok := location["coordinates"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected coordinates to be a map, got %T", location["coordinates"])
+	}
+	if lat, ok := coordinates["lat"].(float64); !ok || lat != 40.7128 {
+		t.Errorf("expected lat 40.7128, got %v", coordinates["lat"])
+	}
+	if lng, ok := coordinates["lng"].(float64); !ok || lng != -74.0060 {
+		t.Errorf("expected lng -74.0060, got %v", coordinates["lng"])
+	}
+
+	// Test preferences with boolean values
+	preferences, ok := profile["preferences"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected preferences to be a map, got %T", profile["preferences"])
+	}
+	notifications, ok := preferences["notifications"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected notifications to be a map, got %T", preferences["notifications"])
+	}
+	if email, ok := notifications["email"].(bool); !ok || !email {
+		t.Errorf("expected email notification true, got %v", notifications["email"])
+	}
+	if push, ok := notifications["push"].(bool); !ok || push {
+		t.Errorf("expected push notification false, got %v", notifications["push"])
+	}
+
+	// Test array of strings
+	languages, ok := preferences["languages"].([]interface{})
+	if !ok {
+		t.Fatalf("expected languages to be an array, got %T", preferences["languages"])
+	}
+	if len(languages) != 3 {
+		t.Errorf("expected 3 languages, got %d", len(languages))
+	}
+	if lang0, ok := languages[0].(string); !ok || lang0 != "en" {
+		t.Errorf("expected first language en, got %v", languages[0])
+	}
+
+	// Test array of strings in roles
+	roles, ok := user["roles"].([]interface{})
+	if !ok {
+		t.Fatalf("expected roles to be an array, got %T", user["roles"])
+	}
+	if len(roles) != 2 {
+		t.Errorf("expected 2 roles, got %d", len(roles))
+	}
+	if role0, ok := roles[0].(string); !ok || role0 != "admin" {
+		t.Errorf("expected first role admin, got %v", roles[0])
+	}
+
+	// Test orders array with complex nested objects
+	orders, ok := o0["orders"].([]interface{})
+	if !ok {
+		t.Fatalf("expected orders to be an array, got %T", o0["orders"])
+	}
+	if len(orders) != 1 {
+		t.Errorf("expected 1 order, got %d", len(orders))
+	}
+
+	order, ok := orders[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected order to be a map, got %T", orders[0])
+	}
+	if orderID, ok := order["order_id"].(string); !ok || orderID != "ORD-001" {
+		t.Errorf("expected order_id ORD-001, got %v", order["order_id"])
+	}
+
+	// Test items array within order
+	items, ok := order["items"].([]interface{})
+	if !ok {
+		t.Fatalf("expected items to be an array, got %T", order["items"])
+	}
+	if len(items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(items))
+	}
+
+	item, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected item to be a map, got %T", items[0])
+	}
+	if price, ok := item["price"].(float64); !ok || price != 1299.99 {
+		t.Errorf("expected price 1299.99, got %v", item["price"])
+	}
+
+	// Test second object with empty orders array
+	o1 := objects[1]
+	if id, ok := o1["id"].(float64); !ok || id != 2 {
+		t.Errorf("expected id 2, got %v", o1["id"])
+	}
+
+	user1, ok := o1["user"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected user to be a map, got %T", o1["user"])
+	}
+	if name, ok := user1["name"].(string); !ok || name != "Bob Smith" {
+		t.Errorf("expected user name Bob Smith, got %v", user1["name"])
+	}
+
+	// Test empty orders array
+	orders1, ok := o1["orders"].([]interface{})
+	if !ok {
+		t.Fatalf("expected orders to be an array, got %T", o1["orders"])
+	}
+	if len(orders1) != 0 {
+		t.Errorf("expected 0 orders, got %d", len(orders1))
+	}
+
+	// Test settings with nested boolean values
+	settings1, ok := o1["settings"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected settings to be a map, got %T", o1["settings"])
+	}
+	privacy1, ok := settings1["privacy"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected privacy to be a map, got %T", settings1["privacy"])
+	}
+	dataSharing1, ok := privacy1["data_sharing"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data_sharing to be a map, got %T", privacy1["data_sharing"])
+	}
+	if analytics, ok := dataSharing1["analytics"].(bool); !ok || analytics {
+		t.Errorf("expected analytics false, got %v", dataSharing1["analytics"])
+	}
+}
