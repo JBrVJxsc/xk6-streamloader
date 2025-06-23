@@ -12,13 +12,13 @@ import (
 )
 
 // StreamLoader is the k6/x/streamloader module.
-// It provides LoadSamples for reading large JSON files efficiently
+// It provides LoadJSON for reading large JSON files efficiently
 // using a small buffer and supporting standard JSON arrays or NDJSON.
 type StreamLoader struct{}
 
-// LoadSamples opens the given file, streams and parses its JSON content into a slice of generic maps.
+// LoadJSON opens the given file, streams and parses its JSON content into a slice of generic maps.
 // By returning map[string]interface{}, we preserve the original JSON key names exactly as-is.
-func (StreamLoader) LoadSamples(filePath string) ([]map[string]any, error) {
+func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 	// 1) Open file
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -44,7 +44,7 @@ func (StreamLoader) LoadSamples(filePath string) ([]map[string]any, error) {
 		break
 	}
 
-	var samples []map[string]any
+	var objects []map[string]any
 
 	if firstByte == '[' {
 		// Standard JSON array format
@@ -65,7 +65,7 @@ func (StreamLoader) LoadSamples(filePath string) ([]map[string]any, error) {
 			if err := dec.Decode(&item); err != nil {
 				return nil, err
 			}
-			samples = append(samples, item)
+			objects = append(objects, item)
 		}
 
 		// Consume closing ']'
@@ -84,14 +84,14 @@ func (StreamLoader) LoadSamples(filePath string) ([]map[string]any, error) {
 			if err := json.Unmarshal([]byte(line), &item); err != nil {
 				return nil, err
 			}
-			samples = append(samples, item)
+			objects = append(objects, item)
 		}
 		if err := scanner.Err(); err != nil {
 			return nil, err
 		}
 	}
 
-	return samples, nil
+	return objects, nil
 }
 
 // isWhitespace checks for JSON whitespace characters

@@ -1,6 +1,6 @@
 # xk6-streamloader
 
-A k6 extension for efficiently loading large JSON arrays or newline-delimited JSON (NDJSON) of HTTP traffic samples from disk, using streaming and minimal intermediate memory.
+A k6 extension for efficiently loading large JSON arrays or newline-delimited JSON (NDJSON) of objects from disk, using streaming and minimal intermediate memory.
 
 ## Build
 
@@ -36,10 +36,10 @@ make test-k6
 import streamloader from 'k6/x/streamloader';
 
 export default function () {
-    // Load samples from a standard JSON array or NDJSON file
-    const samples = streamloader.loadSamples('samples.json');
-    // samples is an Array of plain JS objects with the original JSON keys
-    // e.g. samples[0].requestURI, samples[0].headers["A"], etc.
+    // Load objects from a standard JSON array or NDJSON file
+    const objects = streamloader.loadJSON('samples.json');
+    // objects is an Array of plain JS objects with the original JSON keys
+    // e.g. objects[0].requestURI, objects[0].headers["A"], etc.
 }
 ```
 
