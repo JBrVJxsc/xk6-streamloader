@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.k6.io/k6/js/modules"
@@ -33,7 +34,28 @@ func (StreamLoader) LoadJSON(filePath string) (any, error) {
 	// 2) Buffered reader (64 KB)
 	reader := bufio.NewReaderSize(file, 64*1024)
 
-	// 3) Peek first non-whitespace byte to detect format
+	// 3) NDJSON detection by extension
+	if strings.HasSuffix(strings.ToLower(filepath.Ext(filePath)), ".ndjson") {
+		scanner := bufio.NewScanner(reader)
+		var objects []map[string]any
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			var item map[string]any
+			if err := json.Unmarshal([]byte(line), &item); err != nil {
+				return nil, err
+			}
+			objects = append(objects, item)
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, err
+		}
+		return objects, nil
+	}
+
+	// 4) Peek first non-whitespace byte to detect format
 	var firstByte byte
 	for {
 		b, err := reader.Peek(1)
@@ -62,21 +84,20 @@ func (StreamLoader) LoadJSON(filePath string) (any, error) {
 			return nil, fmt.Errorf("expected JSON array, got %v", tok)
 		}
 
-		var objects []map[string]any
-		// Decode each object in the array into a generic map
+		var arr []interface{}
 		for dec.More() {
-			var item map[string]any
+			var item interface{}
 			if err := dec.Decode(&item); err != nil {
 				return nil, err
 			}
-			objects = append(objects, item)
+			arr = append(arr, item)
 		}
 
 		// Consume closing ']'
 		if _, err := dec.Token(); err != nil {
 			return nil, err
 		}
-		return objects, nil
+		return arr, nil
 	case '{':
 		// JSON object format - return as map directly
 		dec := json.NewDecoder(reader)

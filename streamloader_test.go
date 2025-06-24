@@ -29,13 +29,20 @@ func TestLoadJSON_ArrayFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
 	}
-	objects, ok := result.([]map[string]any)
+	arr, ok := result.([]interface{})
 	if !ok {
-		t.Fatalf("expected array of objects, got %T", result)
+		t.Fatalf("expected array, got %T", result)
 	}
-
-	if len(objects) != 2 {
-		t.Fatalf("expected 2 objects, got %d", len(objects))
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 objects, got %d", len(arr))
+	}
+	objects := make([]map[string]any, len(arr))
+	for i, v := range arr {
+		obj, ok := v.(map[string]any)
+		if !ok {
+			t.Fatalf("expected element %d to be object, got %T", i, v)
+		}
+		objects[i] = obj
 	}
 
 	// First object
@@ -87,12 +94,12 @@ func TestLoadJSON_EmptyArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
 	}
-	objects, ok := result.([]map[string]any)
+	arr, ok := result.([]interface{})
 	if !ok {
-		t.Fatalf("expected array of objects, got %T", result)
+		t.Fatalf("expected array, got %T", result)
 	}
-	if len(objects) != 0 {
-		t.Errorf("expected 0 objects, got %d", len(objects))
+	if len(arr) != 0 {
+		t.Errorf("expected 0 objects, got %d", len(arr))
 	}
 }
 
@@ -148,12 +155,20 @@ func TestLoadJSON_LargeArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
 	}
-	objects, ok := result.([]map[string]any)
+	arr, ok := result.([]interface{})
 	if !ok {
-		t.Fatalf("expected array of objects, got %T", result)
+		t.Fatalf("expected array, got %T", result)
 	}
-	if len(objects) != 1000 {
-		t.Errorf("expected 1000 objects, got %d", len(objects))
+	if len(arr) != 1000 {
+		t.Errorf("expected 1000 objects, got %d", len(arr))
+	}
+	objects := make([]map[string]any, len(arr))
+	for i, v := range arr {
+		obj, ok := v.(map[string]any)
+		if !ok {
+			t.Fatalf("expected element %d to be object, got %T", i, v)
+		}
+		objects[i] = obj
 	}
 	if uri, ok := objects[0]["requestURI"].(string); !ok || uri != "/bulk/0" {
 		t.Errorf("unexpected first object URI: %v", objects[0]["requestURI"])
@@ -179,14 +194,21 @@ func TestLoadJSON_WrongFieldName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
 	}
-	objects, ok := result.([]map[string]any)
+	arr, ok := result.([]interface{})
 	if !ok {
-		t.Fatalf("expected array of objects, got %T", result)
+		t.Fatalf("expected array, got %T", result)
 	}
-	if _, ok := objects[0]["requestURI"]; ok {
-		t.Errorf("did not expect requestURI key, but found %v", objects[0]["requestURI"])
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 object, got %d", len(arr))
 	}
-	if v, ok := objects[0]["request_uri"]; !ok || v != "/foo" {
+	obj, ok := arr[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", arr[0])
+	}
+	if _, ok := obj["requestURI"]; ok {
+		t.Errorf("did not expect requestURI key, but found %v", obj["requestURI"])
+	}
+	if v, ok := obj["request_uri"]; !ok || v != "/foo" {
 		t.Errorf("expected request_uri key with value /foo, got %v", v)
 	}
 }
@@ -346,13 +368,20 @@ func TestLoadJSON_ComplexStructure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
 	}
-	objects, ok := result.([]map[string]any)
+	arr, ok := result.([]interface{})
 	if !ok {
-		t.Fatalf("expected array of objects, got %T", result)
+		t.Fatalf("expected array, got %T", result)
 	}
-
-	if len(objects) != 2 {
-		t.Fatalf("expected 2 objects, got %d", len(objects))
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 objects, got %d", len(arr))
+	}
+	objects := make([]map[string]any, len(arr))
+	for i, v := range arr {
+		obj, ok := v.(map[string]any)
+		if !ok {
+			t.Fatalf("expected element %d to be object, got %T", i, v)
+		}
+		objects[i] = obj
 	}
 
 	// Test first object with complex nested structure
@@ -771,5 +800,204 @@ func TestLoadJSON_RecordingStatsFormat(t *testing.T) {
 	}
 	if v, ok := fs0["percentage"].(float64); !ok || v != 3.61 {
 		t.Errorf("expected filterStats[0].percentage 3.61, got %v", fs0["percentage"])
+	}
+}
+
+func TestLoadJSON_MixedObjectTypes(t *testing.T) {
+	jsonData := `{
+		"obj": {"a": 1, "b": [2,3]},
+		"arr": [1,2,3],
+		"str": "hello",
+		"num": 42,
+		"bool": true,
+		"null": null
+	}`
+	tmpfile, err := os.CreateTemp("", "objects-mixedtypes-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	obj, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
+	}
+	if v, ok := obj["obj"].(map[string]any); !ok || v["a"].(float64) != 1 {
+		t.Errorf("expected obj.a == 1, got %v", obj["obj"])
+	}
+	if arr, ok := obj["arr"].([]interface{}); !ok || len(arr) != 3 || arr[0].(float64) != 1 {
+		t.Errorf("expected arr [1,2,3], got %v", obj["arr"])
+	}
+	if s, ok := obj["str"].(string); !ok || s != "hello" {
+		t.Errorf("expected str 'hello', got %v", obj["str"])
+	}
+	if n, ok := obj["num"].(float64); !ok || n != 42 {
+		t.Errorf("expected num 42, got %v", obj["num"])
+	}
+	if b, ok := obj["bool"].(bool); !ok || !b {
+		t.Errorf("expected bool true, got %v", obj["bool"])
+	}
+	if obj["null"] != nil {
+		t.Errorf("expected null to be nil, got %v", obj["null"])
+	}
+}
+
+func TestLoadJSON_EmptyObject(t *testing.T) {
+	jsonData := `{}`
+	tmpfile, err := os.CreateTemp("", "objects-emptyobj-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	obj, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
+	}
+	if len(obj) != 0 {
+		t.Errorf("expected empty object, got %v", obj)
+	}
+}
+
+func TestLoadJSON_DeeplyNestedObject(t *testing.T) {
+	jsonData := `{"a":{"b":{"c":{"d":{"e":123}}}}}`
+	tmpfile, err := os.CreateTemp("", "objects-deep-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	obj, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
+	}
+	if v := obj["a"].(map[string]any)["b"].(map[string]any)["c"].(map[string]any)["d"].(map[string]any)["e"]; v != 123.0 {
+		t.Errorf("expected deeply nested value 123, got %v", v)
+	}
+}
+
+func TestLoadJSON_ObjectWithSpecialKeys(t *testing.T) {
+	jsonData := `{"1":1,"üñîçødë":"yes","!@#$%^&*()":true}`
+	tmpfile, err := os.CreateTemp("", "objects-specialkeys-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	obj, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
+	}
+	if obj["1"].(float64) != 1 {
+		t.Errorf("expected key '1' to be 1, got %v", obj["1"])
+	}
+	if obj["üñîçødë"].(string) != "yes" {
+		t.Errorf("expected unicode key to be 'yes', got %v", obj["üñîçødë"])
+	}
+	if obj["!@#$%^&*()"].(bool) != true {
+		t.Errorf("expected special key to be true, got %v", obj["!@#$%^&*()"])
+	}
+}
+
+func TestLoadJSON_NDJSON(t *testing.T) {
+	ndjson := `{"a":1}
+{"b":2}
+{"c":[3,4]}
+`
+	tmpfile, err := os.CreateTemp("", "objects-ndjson-*.ndjson")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(ndjson)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	var arr []map[string]any
+	switch v := result.(type) {
+	case []map[string]any:
+		arr = v
+	case []interface{}:
+		arr = make([]map[string]any, len(v))
+		for i, elem := range v {
+			m, ok := elem.(map[string]any)
+			if !ok {
+				t.Fatalf("expected map at %d, got %T", i, elem)
+			}
+			arr[i] = m
+		}
+	default:
+		t.Fatalf("expected array, got %T", result)
+	}
+	if len(arr) != 3 {
+		t.Errorf("expected 3 NDJSON objects, got %d", len(arr))
+	}
+	if arr[0]["a"].(float64) != 1 {
+		t.Errorf("expected first NDJSON object a==1, got %v", arr[0])
+	}
+	if arr[2]["c"].([]interface{})[1].(float64) != 4 {
+		t.Errorf("expected third NDJSON object c[1]==4, got %v", arr[2])
+	}
+}
+
+func TestLoadJSON_ArrayOfPrimitives(t *testing.T) {
+	jsonData := `[1,2,3]`
+	tmpfile, err := os.CreateTemp("", "objects-primarr-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	arr, ok := result.([]interface{})
+	if !ok {
+		t.Fatalf("expected array of primitives, got %T", result)
+	}
+	if len(arr) != 3 || arr[0].(float64) != 1 {
+		t.Errorf("expected [1,2,3], got %v", arr)
 	}
 }

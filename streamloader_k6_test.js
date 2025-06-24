@@ -244,4 +244,54 @@ export default function () {
         'filterStats[0] sampleCount': (s) => s.filterStats[0].sampleCount === 562,
         'filterStats[0] percentage': (s) => s.filterStats[0].percentage === 3.61,
     });
+
+    // 9. Mixed object types
+    const mixedObj = streamloader.loadJSON('mixedtypes.json');
+    check(mixedObj, {
+        'mixedObj is object': (s) => typeof s === 'object' && !Array.isArray(s),
+        'obj.a == 1': (s) => s.obj && s.obj.a === 1,
+        'arr[0] == 1': (s) => Array.isArray(s.arr) && s.arr[0] === 1,
+        'str is hello': (s) => s.str === 'hello',
+        'num is 42': (s) => s.num === 42,
+        'bool is true': (s) => s.bool === true,
+        'null is null': (s) => s.null === null,
+    });
+
+    // 10. Empty object
+    const emptyObj = streamloader.loadJSON('emptyobj.json');
+    check(emptyObj, {
+        'emptyObj is object': (s) => typeof s === 'object' && !Array.isArray(s),
+        'emptyObj has 0 keys': (s) => Object.keys(s).length === 0,
+    });
+
+    // 11. Deeply nested object
+    const deepObj = streamloader.loadJSON('deep.json');
+    check(deepObj, {
+        'deepObj.a.b.c.d.e == 123': (s) => s.a && s.a.b && s.a.b.c && s.a.b.c.d && s.a.b.c.d.e === 123,
+    });
+
+    // 12. Object with special keys
+    const specialKeysObj = streamloader.loadJSON('specialkeys.json');
+    check(specialKeysObj, {
+        'key "1" is 1': (s) => s['1'] === 1,
+        'unicode key is yes': (s) => s['üñîçødë'] === 'yes',
+        'special key is true': (s) => s['!@#$%^&*()'] === true,
+    });
+
+    // 13. NDJSON test
+    const ndjsonArr = streamloader.loadJSON('ndjson.ndjson');
+    check(ndjsonArr, {
+        'ndjson is array': (s) => Array.isArray(s),
+        'ndjson length 3': (s) => s.length === 3,
+        'ndjson[0].a == 1': (s) => s[0].a === 1,
+        'ndjson[2].c[1] == 4': (s) => Array.isArray(s[2].c) && s[2].c[1] === 4,
+    });
+
+    // 14. Array of primitives
+    const primArr = streamloader.loadJSON('primarr.json');
+    check(primArr, {
+        'primArr is array': (s) => Array.isArray(s),
+        'primArr[0] == 1': (s) => s[0] === 1,
+        'primArr[2] == 3': (s) => s[2] === 3,
+    });
 } 
