@@ -21,8 +21,8 @@ type StreamLoader struct{}
 // Supports three formats:
 // 1. JSON array: [{...}, {...}]
 // 2. NDJSON: {...}\n{...}\n
-// 3. JSON object: {"key1": {...}, "key2": {...}} (converted to array with keys preserved)
-func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
+// 3. JSON object: {"key1": {...}, "key2": {...}} (returned as a map)
+func (StreamLoader) LoadJSON(filePath string) (any, error) {
 	// 1) Open file
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -48,8 +48,6 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 		break
 	}
 
-	var objects []map[string]any
-
 	switch firstByte {
 	case '[':
 		// Standard JSON array format
@@ -64,6 +62,7 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 			return nil, fmt.Errorf("expected JSON array, got %v", tok)
 		}
 
+		var objects []map[string]any
 		// Decode each object in the array into a generic map
 		for dec.More() {
 			var item map[string]any
@@ -77,33 +76,20 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 		if _, err := dec.Token(); err != nil {
 			return nil, err
 		}
+		return objects, nil
 	case '{':
-		// JSON object format - convert to array of objects
+		// JSON object format - return as map directly
 		dec := json.NewDecoder(reader)
 
 		var objMap map[string]any
 		if err := dec.Decode(&objMap); err != nil {
 			return nil, err
 		}
-
-		// Convert object to array of objects, preserving keys
-		for key, value := range objMap {
-			if obj, ok := value.(map[string]any); ok {
-				// Add the key as a special field to preserve it
-				obj["_key"] = key
-				objects = append(objects, obj)
-			} else {
-				// If the value is not an object, create one with the value
-				obj := map[string]any{
-					"_key":   key,
-					"_value": value,
-				}
-				objects = append(objects, obj)
-			}
-		}
+		return objMap, nil
 	default:
 		// Newline-delimited JSON (NDJSON) format
 		scanner := bufio.NewScanner(reader)
+		var objects []map[string]any
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
 			if line == "" {
@@ -118,9 +104,8 @@ func (StreamLoader) LoadJSON(filePath string) ([]map[string]any, error) {
 		if err := scanner.Err(); err != nil {
 			return nil, err
 		}
+		return objects, nil
 	}
-
-	return objects, nil
 }
 
 // isWhitespace checks for JSON whitespace characters

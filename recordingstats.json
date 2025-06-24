@@ -1,0 +1,26 @@
+{
+    "recordingId": "18aebc27-ef24-42a0-aee4-5e01f8ac6049",
+    "domain": "EATS_CUSTOMER",
+    "startTime": "2025-06-22T06:54:03.749Z",
+    "endTime": "2025-06-22T06:56:04.299Z",
+    "expireAt": "2025-06-29T06:56:04.299Z",
+    "ttl": 604800,
+    "totalMatchedCount": 15550,
+    "totalUnmatchedCount": 2450,
+    "totalProcessedCount": 18000,
+    "totalDataSize": 57911089,
+    "matchedPercentage": 86.39,
+    "unmatchedPercentage": 13.61,
+    "filterStats": [
+      {
+        "domain": "EATS",
+        "method": "GET",
+        "uriRegex": "/endpoint/store.get_gateway",
+        "sampleCount": 562,
+        "count": 562,
+        "dataSize": 2185148,
+        "percentage": 3.61,
+        "weight": 361
+      }
+    ]
+} 

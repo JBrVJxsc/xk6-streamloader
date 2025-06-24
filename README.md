@@ -37,31 +37,32 @@ import streamloader from 'k6/x/streamloader';
 
 export default function () {
     // Load objects from a standard JSON array, NDJSON file, or top-level object
-    const objects = streamloader.loadJSON('samples.json');
-    // objects is an Array of plain JS objects with the original JSON keys
-    // e.g. objects[0].requestURI, objects[0].headers["A"], etc.
+    const data = streamloader.loadJSON('samples.json');
+    // If samples.json is a JSON array:
+    // data is an Array of plain JS objects with the original JSON keys
+    // e.g. data[0].requestURI, data[0].headers["A"], etc.
 
     // If loading a top-level object (object.json):
     // {
     //   "user1": { ... },
     //   "user2": { ... }
     // }
-    // The result will be:
-    // [ { ...user1 fields..., _key: "user1" }, { ...user2 fields..., _key: "user2" } ]
+    // The result will be a plain JS object:
+    // data.user1, data.user2, etc.
 }
 ```
 
 ## Supported formats
 
-- **JSON array**: a top-level `[...]` containing objects
-- **NDJSON**: one JSON object per line, newline-separated
-- **JSON object**: a top-level `{...}` with key-value pairs; each value is converted to an object in the result array, with the original key preserved as a `_key` property
+- **JSON array**: a top-level `[...]` containing objects (returns an array)
+- **NDJSON**: one JSON object per line, newline-separated (returns an array)
+- **JSON object**: a top-level `{...}` with key-value pairs (returns a plain object)
 
 ## Files
 
 - `streamloader.go`: Extension source code
-- `streamloader_test.go`: Go unit tests
-- `streamloader_k6_test.js`: k6 JS test script
+- `streamloader_test.go`: Go unit tests (now check for plain object for top-level objects)
+- `streamloader_k6_test.js`: k6 JS test script (now checks for plain object for top-level objects)
 - `Makefile`: Build and test automation
 - Example test data files:
   - `samples.json`: Basic JSON array with simple objects

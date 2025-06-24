@@ -25,9 +25,13 @@ func TestLoadJSON_ArrayFormat(t *testing.T) {
 	tmpfile.Close()
 
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected array of objects, got %T", result)
 	}
 
 	if len(objects) != 2 {
@@ -79,9 +83,13 @@ func TestLoadJSON_EmptyArray(t *testing.T) {
 	}
 	tmpfile.Close()
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected array of objects, got %T", result)
 	}
 	if len(objects) != 0 {
 		t.Errorf("expected 0 objects, got %d", len(objects))
@@ -136,9 +144,13 @@ func TestLoadJSON_LargeArray(t *testing.T) {
 	}
 	tmpfile.Close()
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected array of objects, got %T", result)
 	}
 	if len(objects) != 1000 {
 		t.Errorf("expected 1000 objects, got %d", len(objects))
@@ -163,9 +175,13 @@ func TestLoadJSON_WrongFieldName(t *testing.T) {
 	}
 	tmpfile.Close()
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected array of objects, got %T", result)
 	}
 	if _, ok := objects[0]["requestURI"]; ok {
 		t.Errorf("did not expect requestURI key, but found %v", objects[0]["requestURI"])
@@ -326,9 +342,13 @@ func TestLoadJSON_ComplexStructure(t *testing.T) {
 	tmpfile.Close()
 
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.([]map[string]any)
+	if !ok {
+		t.Fatalf("expected array of objects, got %T", result)
 	}
 
 	if len(objects) != 2 {
@@ -514,19 +534,23 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 	tmpfile.Close()
 
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
 	}
 
 	if len(objects) != 3 {
 		t.Fatalf("expected 3 objects, got %d", len(objects))
 	}
 
-	// Test first object (user1)
-	o0 := objects[0]
-	if key, ok := o0["_key"].(string); !ok || key != "user1" {
-		t.Errorf("expected _key user1, got %v", o0["_key"])
+	// Test user1
+	o0, ok := objects["user1"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user1 to be a map, got %T", objects["user1"])
 	}
 	if method, ok := o0["method"].(string); !ok || method != "GET" {
 		t.Errorf("expected method GET, got %v", o0["method"])
@@ -534,7 +558,7 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 	if uri, ok := o0["requestURI"].(string); !ok || uri != "/user1" {
 		t.Errorf("expected requestURI /user1, got %v", o0["requestURI"])
 	}
-	h, ok := o0["headers"].(map[string]interface{})
+	h, ok := o0["headers"].(map[string]any)
 	if !ok || h["A"].(string) != "B" {
 		t.Errorf("expected header A:B, got %v", o0["headers"])
 	}
@@ -542,10 +566,10 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 		t.Errorf("expected content user1_data, got %v", o0["content"])
 	}
 
-	// Test second object (user2)
-	o1 := objects[1]
-	if key, ok := o1["_key"].(string); !ok || key != "user2" {
-		t.Errorf("expected _key user2, got %v", o1["_key"])
+	// Test user2
+	o1, ok := objects["user2"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user2 to be a map, got %T", objects["user2"])
 	}
 	if method, ok := o1["method"].(string); !ok || method != "POST" {
 		t.Errorf("expected method POST, got %v", o1["method"])
@@ -553,7 +577,7 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 	if uri, ok := o1["requestURI"].(string); !ok || uri != "/user2" {
 		t.Errorf("expected requestURI /user2, got %v", o1["requestURI"])
 	}
-	h2, ok := o1["headers"].(map[string]interface{})
+	h2, ok := o1["headers"].(map[string]any)
 	if !ok || h2["C"].(string) != "D" {
 		t.Errorf("expected header C:D, got %v", o1["headers"])
 	}
@@ -561,10 +585,10 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 		t.Errorf("expected content user2_data, got %v", o1["content"])
 	}
 
-	// Test third object (user3)
-	o2 := objects[2]
-	if key, ok := o2["_key"].(string); !ok || key != "user3" {
-		t.Errorf("expected _key user3, got %v", o2["_key"])
+	// Test user3
+	o2, ok := objects["user3"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected user3 to be a map, got %T", objects["user3"])
 	}
 	if method, ok := o2["method"].(string); !ok || method != "PUT" {
 		t.Errorf("expected method PUT, got %v", o2["method"])
@@ -572,7 +596,7 @@ func TestLoadJSON_ObjectFormat(t *testing.T) {
 	if uri, ok := o2["requestURI"].(string); !ok || uri != "/user3" {
 		t.Errorf("expected requestURI /user3, got %v", o2["requestURI"])
 	}
-	h3, ok := o2["headers"].(map[string]interface{})
+	h3, ok := o2["headers"].(map[string]any)
 	if !ok || h3["E"].(string) != "F" {
 		t.Errorf("expected header E:F, got %v", o2["headers"])
 	}
@@ -603,9 +627,13 @@ func TestLoadJSON_ObjectFormatWithNonObjectValues(t *testing.T) {
 	tmpfile.Close()
 
 	loader := StreamLoader{}
-	objects, err := loader.LoadJSON(tmpfile.Name())
+	result, err := loader.LoadJSON(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
 	}
 
 	if len(objects) != 6 {
@@ -613,65 +641,135 @@ func TestLoadJSON_ObjectFormatWithNonObjectValues(t *testing.T) {
 	}
 
 	// Test string value
-	foundString := false
-	for _, obj := range objects {
-		if key, ok := obj["_key"].(string); ok && key == "string_value" {
-			if value, ok := obj["_value"].(string); !ok || value != "hello world" {
-				t.Errorf("expected _value hello world, got %v", obj["_value"])
-			}
-			foundString = true
-			break
-		}
+	if v, ok := objects["string_value"].(string); !ok || v != "hello world" {
+		t.Errorf("expected string_value to be 'hello world', got %v", objects["string_value"])
 	}
-	if !foundString {
-		t.Error("did not find string_value object")
-	}
-
 	// Test number value
-	foundNumber := false
-	for _, obj := range objects {
-		if key, ok := obj["_key"].(string); ok && key == "number_value" {
-			if value, ok := obj["_value"].(float64); !ok || value != 42 {
-				t.Errorf("expected _value 42, got %v", obj["_value"])
-			}
-			foundNumber = true
-			break
-		}
+	if v, ok := objects["number_value"].(float64); !ok || v != 42 {
+		t.Errorf("expected number_value to be 42, got %v", objects["number_value"])
 	}
-	if !foundNumber {
-		t.Error("did not find number_value object")
-	}
-
 	// Test boolean value
-	foundBoolean := false
-	for _, obj := range objects {
-		if key, ok := obj["_key"].(string); ok && key == "boolean_value" {
-			if value, ok := obj["_value"].(bool); !ok || !value {
-				t.Errorf("expected _value true, got %v", obj["_value"])
-			}
-			foundBoolean = true
-			break
-		}
+	if v, ok := objects["boolean_value"].(bool); !ok || !v {
+		t.Errorf("expected boolean_value to be true, got %v", objects["boolean_value"])
 	}
-	if !foundBoolean {
-		t.Error("did not find boolean_value object")
+	// Test null value
+	if objects["null_value"] != nil {
+		t.Errorf("expected null_value to be nil, got %v", objects["null_value"])
+	}
+	// Test array value
+	if arr, ok := objects["array_value"].([]interface{}); !ok || len(arr) != 3 || arr[0].(float64) != 1 || arr[1].(float64) != 2 || arr[2].(float64) != 3 {
+		t.Errorf("expected array_value to be [1,2,3], got %v", objects["array_value"])
+	}
+	// Test object value
+	if obj, ok := objects["object_value"].(map[string]any); !ok || obj["nested"] != "data" {
+		t.Errorf("expected object_value.nested to be 'data', got %v", objects["object_value"])
+	}
+}
+
+func TestLoadJSON_RecordingStatsFormat(t *testing.T) {
+	jsonData := `{
+    "recordingId": "18aebc27-ef24-42a0-aee4-5e01f8ac6049",
+    "domain": "EATS_CUSTOMER",
+    "startTime": "2025-06-22T06:54:03.749Z",
+    "endTime": "2025-06-22T06:56:04.299Z",
+    "expireAt": "2025-06-29T06:56:04.299Z",
+    "ttl": 604800,
+    "totalMatchedCount": 15550,
+    "totalUnmatchedCount": 2450,
+    "totalProcessedCount": 18000,
+    "totalDataSize": 57911089,
+    "matchedPercentage": 86.39,
+    "unmatchedPercentage": 13.61,
+    "filterStats": [
+      {
+        "domain": "EATS",
+        "method": "GET",
+        "uriRegex": "/endpoint/store.get_gateway",
+        "sampleCount": 562,
+        "count": 562,
+        "dataSize": 2185148,
+        "percentage": 3.61,
+        "weight": 361
+      }
+    ]
+  }`
+
+	tmpfile, err := os.CreateTemp("", "objects-recordingstats-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadJSON(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadJSON failed: %v", err)
+	}
+	objects, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object, got %T", result)
 	}
 
-	// Test object value (should not have _value field)
-	foundObject := false
-	for _, obj := range objects {
-		if key, ok := obj["_key"].(string); ok && key == "object_value" {
-			if _, hasValue := obj["_value"]; hasValue {
-				t.Error("object_value should not have _value field")
-			}
-			if nested, ok := obj["nested"].(string); !ok || nested != "data" {
-				t.Errorf("expected nested data, got %v", obj["nested"])
-			}
-			foundObject = true
-			break
+	if len(objects) != 13 {
+		t.Fatalf("expected 13 objects, got %d", len(objects))
+	}
+
+	tests := []struct {
+		key  string
+		want interface{}
+	}{
+		{"recordingId", "18aebc27-ef24-42a0-aee4-5e01f8ac6049"},
+		{"domain", "EATS_CUSTOMER"},
+		{"startTime", "2025-06-22T06:54:03.749Z"},
+		{"endTime", "2025-06-22T06:56:04.299Z"},
+		{"expireAt", "2025-06-29T06:56:04.299Z"},
+		{"ttl", 604800.0},
+		{"totalMatchedCount", 15550.0},
+		{"totalUnmatchedCount", 2450.0},
+		{"totalProcessedCount", 18000.0},
+		{"totalDataSize", 57911089.0},
+		{"matchedPercentage", 86.39},
+		{"unmatchedPercentage", 13.61},
+	}
+
+	for _, tt := range tests {
+		v, ok := objects[tt.key]
+		if !ok {
+			t.Errorf("object with key %q not found", tt.key)
+			continue
+		}
+		if v != tt.want {
+			t.Errorf("for key %q, expected value %v, got %v", tt.key, tt.want, v)
 		}
 	}
-	if !foundObject {
-		t.Error("did not find object_value object")
+
+	// Check filterStats
+	fs, ok := objects["filterStats"].([]interface{})
+	if !ok || len(fs) != 1 {
+		t.Fatalf("expected filterStats to be array of length 1, got %v", objects["filterStats"])
+	}
+	fs0, ok := fs[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected filterStats[0] to be a map, got %T", fs[0])
+	}
+	if v, ok := fs0["domain"].(string); !ok || v != "EATS" {
+		t.Errorf("expected filterStats[0].domain EATS, got %v", fs0["domain"])
+	}
+	if v, ok := fs0["method"].(string); !ok || v != "GET" {
+		t.Errorf("expected filterStats[0].method GET, got %v", fs0["method"])
+	}
+	if v, ok := fs0["uriRegex"].(string); !ok || v != "/endpoint/store.get_gateway" {
+		t.Errorf("expected filterStats[0].uriRegex /endpoint/store.get_gateway, got %v", fs0["uriRegex"])
+	}
+	if v, ok := fs0["sampleCount"].(float64); !ok || v != 562 {
+		t.Errorf("expected filterStats[0].sampleCount 562, got %v", fs0["sampleCount"])
+	}
+	if v, ok := fs0["percentage"].(float64); !ok || v != 3.61 {
+		t.Errorf("expected filterStats[0].percentage 3.61, got %v", fs0["percentage"])
 	}
 }

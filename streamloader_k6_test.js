@@ -215,55 +215,33 @@ export default function () {
 
     // 7. Object JSON format test
     const objectObjects = streamloader.loadJSON('object.json');
-    console.log('objectObjects length:', objectObjects.length);
-    console.log('objectObjects[0]:', JSON.stringify(objectObjects[0]));
-    
+    console.log('objectObjects keys:', Object.keys(objectObjects));
+    console.log('objectObjects.user1:', JSON.stringify(objectObjects.user1));
     check(objectObjects, {
-        'object JSON array length': (s) => s.length === 3,
-        
-        // Test object keys are preserved
-        'first object has _key': (s) => s[0]._key === 'user1' || s[0]._key === 'user2' || s[0]._key === 'user3',
-        'second object has _key': (s) => s[1]._key === 'user1' || s[1]._key === 'user2' || s[1]._key === 'user3',
-        'third object has _key': (s) => s[2]._key === 'user1' || s[2]._key === 'user2' || s[2]._key === 'user3',
-        
-        // Test all objects have unique keys
-        'all objects have unique keys': (s) => {
-            const keys = s.map(obj => obj._key);
-            return keys.length === new Set(keys).size;
-        },
-        
-        // Test object properties are preserved
-        'objects have method property': (s) => s.every(obj => obj.method !== undefined),
-        'objects have requestURI property': (s) => s.every(obj => obj.requestURI !== undefined),
-        'objects have headers property': (s) => s.every(obj => obj.headers !== undefined),
-        'objects have content property': (s) => s.every(obj => obj.content !== undefined),
-        
-        // Test specific object values
-        'user1 object has correct data': (s) => {
-            const user1 = s.find(obj => obj._key === 'user1');
-            return user1 && user1.method === 'GET' && user1.requestURI === '/user1' && user1.content === 'user1_data';
-        },
-        'user2 object has correct data': (s) => {
-            const user2 = s.find(obj => obj._key === 'user2');
-            return user2 && user2.method === 'POST' && user2.requestURI === '/user2' && user2.content === 'user2_data';
-        },
-        'user3 object has correct data': (s) => {
-            const user3 = s.find(obj => obj._key === 'user3');
-            return user3 && user3.method === 'PUT' && user3.requestURI === '/user3' && user3.content === 'user3_data';
-        },
-        
-        // Test headers are preserved
-        'user1 headers': (s) => {
-            const user1 = s.find(obj => obj._key === 'user1');
-            return user1 && user1.headers.A === 'B';
-        },
-        'user2 headers': (s) => {
-            const user2 = s.find(obj => obj._key === 'user2');
-            return user2 && user2.headers.C === 'D';
-        },
-        'user3 headers': (s) => {
-            const user3 = s.find(obj => obj._key === 'user3');
-            return user3 && user3.headers.E === 'F';
-        },
+        'object JSON has 3 keys': (s) => Object.keys(s).length === 3,
+        'user1 object has correct data': (s) => s.user1 && s.user1.method === 'GET' && s.user1.requestURI === '/user1' && s.user1.content === 'user1_data',
+        'user2 object has correct data': (s) => s.user2 && s.user2.method === 'POST' && s.user2.requestURI === '/user2' && s.user2.content === 'user2_data',
+        'user3 object has correct data': (s) => s.user3 && s.user3.method === 'PUT' && s.user3.requestURI === '/user3' && s.user3.content === 'user3_data',
+        'user1 headers': (s) => s.user1 && s.user1.headers && s.user1.headers.A === 'B',
+        'user2 headers': (s) => s.user2 && s.user2.headers && s.user2.headers.C === 'D',
+        'user3 headers': (s) => s.user3 && s.user3.headers && s.user3.headers.E === 'F',
+    });
+
+    // 8. Recording stats object test
+    const recordingStatsObjects = streamloader.loadJSON('recordingstats.json');
+    console.log('recordingStatsObjects keys:', Object.keys(recordingStatsObjects));
+    check(recordingStatsObjects, {
+        'recordingStats has 13 keys': (s) => Object.keys(s).length === 13,
+        'recordingId correct': (s) => s.recordingId === '18aebc27-ef24-42a0-aee4-5e01f8ac6049',
+        'domain correct': (s) => s.domain === 'EATS_CUSTOMER',
+        'ttl correct': (s) => s.ttl === 604800,
+        'matchedPercentage correct': (s) => s.matchedPercentage === 86.39,
+        'filterStats is array': (s) => Array.isArray(s.filterStats),
+        'filterStats length 1': (s) => s.filterStats.length === 1,
+        'filterStats[0] domain': (s) => s.filterStats[0].domain === 'EATS',
+        'filterStats[0] method': (s) => s.filterStats[0].method === 'GET',
+        'filterStats[0] uriRegex': (s) => s.filterStats[0].uriRegex === '/endpoint/store.get_gateway',
+        'filterStats[0] sampleCount': (s) => s.filterStats[0].sampleCount === 562,
+        'filterStats[0] percentage': (s) => s.filterStats[0].percentage === 3.61,
     });
 } 
