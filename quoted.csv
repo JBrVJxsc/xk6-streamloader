@@ -1,0 +1,6 @@
+name,description,price,category
+"Widget A","A simple, useful widget",19.99,electronics
+"Gadget B","Complex gadget with ""special"" features",49.99,tools
+"Product C","Contains commas, quotes, and
+newlines",29.99,misc
+Simple Product,No quotes needed,9.99,basic 

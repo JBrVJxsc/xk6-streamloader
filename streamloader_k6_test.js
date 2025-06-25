@@ -2,6 +2,8 @@ import streamloader from 'k6/x/streamloader';
 import { check, fail } from 'k6';
 
 export default function () {
+    // JSON Tests (existing)
+    
     // 1. Normal case: valid file
     const objects = streamloader.loadJSON('samples.json');
     console.log('objects:', JSON.stringify(objects));
@@ -294,4 +296,117 @@ export default function () {
         'primArr[0] == 1': (s) => s[0] === 1,
         'primArr[2] == 3': (s) => s[2] === 3,
     });
+
+    // CSV Tests (new)
+    
+    // 15. Basic CSV test
+    const basicCSV = streamloader.loadCSV('basic.csv');
+    console.log('basicCSV length:', basicCSV.length);
+    console.log('basicCSV[0] (headers):', JSON.stringify(basicCSV[0]));
+    console.log('basicCSV[1] (first row):', JSON.stringify(basicCSV[1]));
+    check(basicCSV, {
+        'CSV has 5 rows (header + 4 data)': (s) => s.length === 5,
+        'CSV is array of arrays': (s) => Array.isArray(s) && Array.isArray(s[0]),
+        'CSV header has 4 columns': (s) => s[0].length === 4,
+        'CSV header name': (s) => s[0][0] === 'name',
+        'CSV header age': (s) => s[0][1] === 'age',
+        'CSV header city': (s) => s[0][2] === 'city',
+        'CSV header active': (s) => s[0][3] === 'active',
+        'CSV first data row name': (s) => s[1][0] === 'John Doe',
+        'CSV first data row age': (s) => s[1][1] === '30',
+        'CSV first data row city': (s) => s[1][2] === 'New York',
+        'CSV first data row active': (s) => s[1][3] === 'true',
+        'CSV last data row name': (s) => s[4][0] === 'Alice Brown',
+        'CSV last data row age': (s) => s[4][1] === '28',
+        'CSV last data row city': (s) => s[4][2] === 'Houston',
+        'CSV last data row active': (s) => s[4][3] === 'false',
+    });
+
+    // 16. Quoted CSV test  
+    const quotedCSV = streamloader.loadCSV('quoted.csv');
+    console.log('quotedCSV length:', quotedCSV.length);
+    console.log('quotedCSV[1] (Widget A):', JSON.stringify(quotedCSV[1]));
+    console.log('quotedCSV[2] (Gadget B):', JSON.stringify(quotedCSV[2]));
+    check(quotedCSV, {
+        'Quoted CSV has 5 rows': (s) => s.length === 5,
+        'Quoted CSV header description': (s) => s[0][1] === 'description',
+        'Quoted field with comma': (s) => s[1][1] === 'A simple, useful widget',
+        'Quoted field with escaped quotes': (s) => s[2][1] === 'Complex gadget with "special" features',
+        'Quoted field with newlines': (s) => s[3][1].includes('Contains commas, quotes, and\nnewlines'),
+        'Unquoted field': (s) => s[4][1] === 'No quotes needed',
+        'Widget A name': (s) => s[1][0] === 'Widget A',
+        'Widget A price': (s) => s[1][2] === '19.99',
+        'Widget A category': (s) => s[1][3] === 'electronics',
+    });
+
+    // 17. Empty CSV test
+    const emptyCSV = streamloader.loadCSV('empty.csv');
+    console.log('emptyCSV length:', emptyCSV.length);
+    check(emptyCSV, {
+        'Empty CSV returns empty array': (s) => Array.isArray(s) && s.length === 0,
+    });
+
+    // 18. Headers only CSV test
+    const headersOnlyCSV = streamloader.loadCSV('headers_only.csv');
+    console.log('headersOnlyCSV:', JSON.stringify(headersOnlyCSV));
+    check(headersOnlyCSV, {
+        'Headers only CSV has 1 row': (s) => s.length === 1,
+        'Headers only CSV has 4 columns': (s) => s[0].length === 4,
+        'Headers only first column': (s) => s[0][0] === 'id',
+        'Headers only second column': (s) => s[0][1] === 'name',
+        'Headers only third column': (s) => s[0][2] === 'email',
+        'Headers only fourth column': (s) => s[0][3] === 'created_at',
+    });
+
+    // 19. Large CSV test
+    const largeCSV = streamloader.loadCSV('large.csv');
+    console.log('largeCSV length:', largeCSV.length);
+    console.log('largeCSV[0] (headers):', JSON.stringify(largeCSV[0]));
+    console.log('largeCSV[1] (first data row):', JSON.stringify(largeCSV[1]));
+    console.log('largeCSV[10000] (last data row):', JSON.stringify(largeCSV[10000]));
+    check(largeCSV, {
+        'Large CSV has 10001 rows (header + 10000 data)': (s) => s.length === 10001,
+        'Large CSV header has 10 columns': (s) => s[0].length === 10,
+        'Large CSV header id': (s) => s[0][0] === 'id',
+        'Large CSV header name': (s) => s[0][1] === 'name',
+        'Large CSV header email': (s) => s[0][2] === 'email',
+        'Large CSV header phone': (s) => s[0][3] === 'phone',
+        'Large CSV header age': (s) => s[0][4] === 'age',
+        'Large CSV header city': (s) => s[0][5] === 'city',
+        'Large CSV header country': (s) => s[0][6] === 'country',
+        'Large CSV header department': (s) => s[0][7] === 'department',
+        'Large CSV header salary': (s) => s[0][8] === 'salary',
+        'Large CSV header active': (s) => s[0][9] === 'active',
+        'Large CSV first data row id': (s) => s[1][0] === '1',
+        'Large CSV last data row id': (s) => s[10000][0] === '10000',
+        'Large CSV all rows have 10 columns': (s) => s.every(row => row.length === 10),
+        'Large CSV first data row has email': (s) => s[1][2].includes('@'),
+        'Large CSV last data row has email': (s) => s[10000][2].includes('@'),
+        'Large CSV first data row age is number': (s) => !isNaN(parseInt(s[1][4])),
+        'Large CSV last data row age is number': (s) => !isNaN(parseInt(s[10000][4])),
+    });
+
+    // 20. Malformed CSV error test
+    try {
+        streamloader.loadCSV('malformed.csv');
+        fail('Expected error for malformed CSV');
+    } catch (e) {
+        console.log('Malformed CSV error:', String(e));
+        check(e, { 
+            'error for malformed CSV': (err) => String(err).toLowerCase().includes('parse') || String(err).toLowerCase().includes('csv')
+        });
+    }
+
+    // 21. Missing CSV file error test
+    try {
+        streamloader.loadCSV('nonexistent_file.csv');
+        fail('Expected error for missing CSV file');
+    } catch (e) {
+        console.log('Missing CSV file error:', String(e));
+        check(e, { 
+            'error for missing CSV file': (err) => String(err).includes('nonexistent_file') || String(err).toLowerCase().includes('open')
+        });
+    }
+
+    console.log('All JSON and CSV tests completed successfully!');
 } 

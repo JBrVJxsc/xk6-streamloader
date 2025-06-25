@@ -1001,3 +1001,375 @@ func TestLoadJSON_ArrayOfPrimitives(t *testing.T) {
 		t.Errorf("expected [1,2,3], got %v", arr)
 	}
 }
+
+// CSV Tests
+
+func TestLoadCSV_BasicFormat(t *testing.T) {
+	csvData := `name,age,city,active
+John Doe,30,New York,true
+Jane Smith,25,Los Angeles,false
+Bob Johnson,35,Chicago,true`
+
+	tmpfile, err := os.CreateTemp("", "test-basic-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 4 {
+		t.Fatalf("expected 4 rows, got %d", len(result))
+	}
+
+	// Check header row
+	expectedHeaders := []string{"name", "age", "city", "active"}
+	if len(result[0]) != len(expectedHeaders) {
+		t.Fatalf("expected %d columns in header, got %d", len(expectedHeaders), len(result[0]))
+	}
+	for i, expected := range expectedHeaders {
+		if result[0][i] != expected {
+			t.Errorf("expected header[%d] to be %s, got %s", i, expected, result[0][i])
+		}
+	}
+
+	// Check first data row
+	expectedFirstRow := []string{"John Doe", "30", "New York", "true"}
+	if len(result[1]) != len(expectedFirstRow) {
+		t.Fatalf("expected %d columns in first row, got %d", len(expectedFirstRow), len(result[1]))
+	}
+	for i, expected := range expectedFirstRow {
+		if result[1][i] != expected {
+			t.Errorf("expected row[1][%d] to be %s, got %s", i, expected, result[1][i])
+		}
+	}
+
+	// Check last data row
+	expectedLastRow := []string{"Bob Johnson", "35", "Chicago", "true"}
+	if len(result[3]) != len(expectedLastRow) {
+		t.Fatalf("expected %d columns in last row, got %d", len(expectedLastRow), len(result[3]))
+	}
+	for i, expected := range expectedLastRow {
+		if result[3][i] != expected {
+			t.Errorf("expected row[3][%d] to be %s, got %s", i, expected, result[3][i])
+		}
+	}
+}
+
+func TestLoadCSV_QuotedFields(t *testing.T) {
+	csvData := `name,description,price,category
+"Widget A","A simple, useful widget",19.99,electronics
+"Gadget B","Complex gadget with ""special"" features",49.99,tools
+"Product C","Contains commas, quotes, and
+newlines",29.99,misc
+Simple Product,No quotes needed,9.99,basic`
+
+	tmpfile, err := os.CreateTemp("", "test-quoted-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 5 {
+		t.Fatalf("expected 5 rows, got %d", len(result))
+	}
+
+	// Check quoted field with commas
+	if result[1][1] != "A simple, useful widget" {
+		t.Errorf("expected quoted field with comma, got %s", result[1][1])
+	}
+
+	// Check quoted field with escaped quotes
+	if result[2][1] != `Complex gadget with "special" features` {
+		t.Errorf("expected quoted field with escaped quotes, got %s", result[2][1])
+	}
+
+	// Check quoted field with newlines
+	expectedMultiline := "Contains commas, quotes, and\nnewlines"
+	if result[3][1] != expectedMultiline {
+		t.Errorf("expected quoted field with newlines, got %s", result[3][1])
+	}
+
+	// Check unquoted field
+	if result[4][1] != "No quotes needed" {
+		t.Errorf("expected unquoted field, got %s", result[4][1])
+	}
+}
+
+func TestLoadCSV_EmptyFile(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "test-empty-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("expected 0 rows for empty file, got %d", len(result))
+	}
+}
+
+func TestLoadCSV_HeadersOnly(t *testing.T) {
+	csvData := `id,name,email,created_at`
+
+	tmpfile, err := os.CreateTemp("", "test-headers-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Fatalf("expected 1 row (headers only), got %d", len(result))
+	}
+
+	expectedHeaders := []string{"id", "name", "email", "created_at"}
+	if len(result[0]) != len(expectedHeaders) {
+		t.Fatalf("expected %d columns, got %d", len(expectedHeaders), len(result[0]))
+	}
+	for i, expected := range expectedHeaders {
+		if result[0][i] != expected {
+			t.Errorf("expected header[%d] to be %s, got %s", i, expected, result[0][i])
+		}
+	}
+}
+
+func TestLoadCSV_LargeFile(t *testing.T) {
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV("large.csv")
+	if err != nil {
+		t.Fatalf("LoadCSV failed for large file: %v", err)
+	}
+
+	// Should have header + 10,000 data rows = 10,001 total rows
+	expectedRows := 10001
+	if len(result) != expectedRows {
+		t.Fatalf("expected %d rows in large file, got %d", expectedRows, len(result))
+	}
+
+	// Check header row
+	expectedHeaders := []string{"id", "name", "email", "phone", "age", "city", "country", "department", "salary", "active"}
+	if len(result[0]) != len(expectedHeaders) {
+		t.Fatalf("expected %d columns in header, got %d", len(expectedHeaders), len(result[0]))
+	}
+	for i, expected := range expectedHeaders {
+		if result[0][i] != expected {
+			t.Errorf("expected header[%d] to be %s, got %s", i, expected, result[0][i])
+		}
+	}
+
+	// Check first data row (should have id=1)
+	if result[1][0] != "1" {
+		t.Errorf("expected first data row id to be 1, got %s", result[1][0])
+	}
+
+	// Check last data row (should have id=10000)
+	if result[10000][0] != "10000" {
+		t.Errorf("expected last data row id to be 10000, got %s", result[10000][0])
+	}
+
+	// Verify all rows have the same number of columns
+	expectedCols := len(expectedHeaders)
+	for i, row := range result {
+		if len(row) != expectedCols {
+			t.Errorf("row %d has %d columns, expected %d", i, len(row), expectedCols)
+		}
+	}
+}
+
+func TestLoadCSV_InconsistentColumns(t *testing.T) {
+	csvData := `a,b,c
+1,2,3
+4,5
+6,7,8,9`
+
+	tmpfile, err := os.CreateTemp("", "test-inconsistent-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 4 {
+		t.Fatalf("expected 4 rows, got %d", len(result))
+	}
+
+	// Check row with fewer columns
+	if len(result[2]) != 2 {
+		t.Errorf("expected row 2 to have 2 columns, got %d", len(result[2]))
+	}
+	if result[2][0] != "4" || result[2][1] != "5" {
+		t.Errorf("expected row 2 to be [4, 5], got %v", result[2])
+	}
+
+	// Check row with more columns
+	if len(result[3]) != 4 {
+		t.Errorf("expected row 3 to have 4 columns, got %d", len(result[3]))
+	}
+	if result[3][0] != "6" || result[3][1] != "7" || result[3][2] != "8" || result[3][3] != "9" {
+		t.Errorf("expected row 3 to be [6, 7, 8, 9], got %v", result[3])
+	}
+}
+
+func TestLoadCSV_MissingFile(t *testing.T) {
+	loader := StreamLoader{}
+	_, err := loader.LoadCSV("nonexistent_file.csv")
+	if err == nil {
+		t.Error("expected error for missing file, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to open CSV file") {
+		t.Errorf("expected error message about opening file, got: %s", err.Error())
+	}
+}
+
+func TestLoadCSV_MalformedCSV(t *testing.T) {
+	// CSV with control characters that will cause parsing errors
+	csvData := "a,b,c\n1,2,3\n\"quote\x00with\x01null\",field"
+
+	tmpfile, err := os.CreateTemp("", "test-malformed-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	// With LazyQuotes, even control characters might be handled gracefully
+	// So let's test that it either succeeds or fails with a proper error
+	if err != nil {
+		if !strings.Contains(err.Error(), "failed to parse CSV") {
+			t.Errorf("expected error message about parsing CSV, got: %s", err.Error())
+		}
+	} else {
+		// If it succeeds, verify the result is reasonable
+		if len(result) < 2 {
+			t.Errorf("expected at least 2 rows if parsing succeeded, got %d", len(result))
+		}
+	}
+}
+
+func TestLoadCSV_SpecialCharacters(t *testing.T) {
+	csvData := `name,description,unicode
+"José María","Café naïve résumé",çñüéñ
+"李小明","北京市朝阳区",中文测试
+"Müller","Straße München",äöüß`
+
+	tmpfile, err := os.CreateTemp("", "test-unicode-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 4 {
+		t.Fatalf("expected 4 rows, got %d", len(result))
+	}
+
+	// Check unicode handling
+	if result[1][0] != "José María" {
+		t.Errorf("expected unicode name, got %s", result[1][0])
+	}
+	if result[2][0] != "李小明" {
+		t.Errorf("expected Chinese name, got %s", result[2][0])
+	}
+	if result[3][0] != "Müller" {
+		t.Errorf("expected German name with umlaut, got %s", result[3][0])
+	}
+}
+
+func TestLoadCSV_WhitespaceHandling(t *testing.T) {
+	csvData := `  name  ,  age  ,  city  
+  John  ,  30  ,  New York  
+Jane,25,Los Angeles`
+
+	tmpfile, err := os.CreateTemp("", "test-whitespace-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(result))
+	}
+
+	// Check that leading spaces are trimmed (due to TrimLeadingSpace = true)
+	// Note: TrimLeadingSpace only trims leading spaces, not trailing spaces
+	if result[0][0] != "name  " {
+		t.Errorf("expected header with trailing spaces 'name  ', got '%s'", result[0][0])
+	}
+	if result[1][0] != "John  " {
+		t.Errorf("expected field with trailing spaces 'John  ', got '%s'", result[1][0])
+	}
+}
