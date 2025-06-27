@@ -1597,3 +1597,197 @@ func TestTail(t *testing.T) {
 		t.Error("expected error for non-existent file, got nil")
 	}
 }
+
+func TestProcessCsvFile(t *testing.T) {
+	// Helper function to create a temporary CSV file
+	createTempCsv := func(t *testing.T, data string) string {
+		t.Helper()
+		tmpfile, err := os.CreateTemp("", "test-*.csv")
+		if err != nil {
+			t.Fatalf("failed to create temp file: %v", err)
+		}
+		if _, err := tmpfile.Write([]byte(data)); err != nil {
+			t.Fatalf("failed to write to temp file: %v", err)
+		}
+		tmpfile.Close()
+		t.Cleanup(func() { os.Remove(tmpfile.Name()) })
+		return tmpfile.Name()
+	}
+
+	// Helper to compare results
+	assertEqual := func(t *testing.T, expected, actual [][]interface{}) {
+		t.Helper()
+		if len(expected) != len(actual) {
+			t.Fatalf("expected %d rows, got %d", len(expected), len(actual))
+		}
+		for i := range expected {
+			if len(expected[i]) != len(actual[i]) {
+				t.Fatalf("row %d: expected %d columns, got %d", i, len(expected[i]), len(actual[i]))
+			}
+			for j := range expected[i] {
+				if expected[i][j] != actual[i][j] {
+					t.Errorf("row %d, col %d: expected %v, got %v", i, j, expected[i][j], actual[i][j])
+				}
+			}
+		}
+	}
+
+	csvData := `id,name,value,category
+1,alpha,100,A
+2,bravo,,B
+3,charlie,300,A
+4,delta,400,C
+5,,500,B
+`
+
+	t.Run("Basic processing with skipHeader", func(t *testing.T) {
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{SkipHeader: true}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		expected := [][]interface{}{
+			{"1", "alpha", "100", "A"},
+			{"2", "bravo", "", "B"},
+			{"3", "charlie", "300", "A"},
+			{"4", "delta", "400", "C"},
+			{"5", "", "500", "B"},
+		}
+		assertEqual(t, expected, result)
+	})
+
+	t.Run("Filtering", func(t *testing.T) {
+		filePath := createTempCsv(t, csvData)
+		min := 200.0
+		max := 350.0
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Filters: []FilterConfig{
+				{Type: "emptyString", Column: 1},
+				{Type: "regexMatch", Column: 3, Pattern: "^[A-C]$"},
+				{Type: "valueRange", Column: 2, Min: &min, Max: &max},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		expected := [][]interface{}{
+			{"3", "charlie", "300", "A"},
+		}
+		assertEqual(t, expected, result)
+	})
+
+	t.Run("Transforms", func(t *testing.T) {
+		filePath := createTempCsv(t, csvData)
+		length := 3
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Transforms: []TransformConfig{
+				{Type: "parseInt", Column: 0},
+				{Type: "fixedValue", Column: 1, Value: "processed"},
+				{Type: "substring", Column: 3, Start: 0, Length: &length},
+			},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+				{Type: "column", Column: 3},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		expected := [][]interface{}{
+			{"1", "processed", "A"},
+			{"2", "processed", "B"},
+			{"3", "processed", "A"},
+			{"4", "processed", "C"},
+			{"5", "processed", "B"},
+		}
+		assertEqual(t, expected, result)
+	})
+
+	t.Run("Grouping", func(t *testing.T) {
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			GroupBy:    &GroupByConfig{Column: 3},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		// The order of groups is not guaranteed
+		for _, row := range result {
+			if len(row) == 4 && row[0] == "1" && row[2] == "3" { // Group A
+				// Correct
+			} else if len(row) == 4 && row[0] == "2" && row[2] == "5" { // Group B
+				// Correct
+			} else if len(row) == 2 && row[0] == "4" { // Group C
+				// Correct
+			} else {
+				t.Errorf("Unexpected group content: %v", row)
+			}
+		}
+		if len(result) != 3 {
+			t.Errorf("expected 3 groups, got %d", len(result))
+		}
+	})
+
+	t.Run("Projections", func(t *testing.T) {
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 1},
+				{Type: "fixed", Value: "static"},
+				{Type: "column", Column: 3},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		expected := [][]interface{}{
+			{"alpha", "static", "A"},
+			{"bravo", "static", "B"},
+			{"charlie", "static", "A"},
+			{"delta", "static", "C"},
+			{"", "static", "B"},
+		}
+		assertEqual(t, expected, result)
+	})
+
+	t.Run("File not found", func(t *testing.T) {
+		options := ProcessCsvOptions{}
+		loader := StreamLoader{}
+		_, err := loader.ProcessCsvFile("nonexistent.csv", options)
+		if err == nil {
+			t.Fatal("expected error for non-existent file, got nil")
+		}
+	})
+
+	t.Run("Empty file", func(t *testing.T) {
+		filePath := createTempCsv(t, "")
+		options := ProcessCsvOptions{}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected 0 rows, got %d", len(result))
+		}
+	})
+}

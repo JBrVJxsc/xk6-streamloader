@@ -1,5 +1,5 @@
 # Variables
-MODULE_NAME = github.com/xuzhang/xk6-streamloader
+MODULE_NAME = github.com/JBrVJxsc/xk6-streamloader
 K6_VERSION = v1.0.0
 XK6_VERSION = v0.20.1
 BUILD_DIR = build
@@ -48,6 +48,7 @@ test-go:
 # Run k6 JavaScript tests
 test-k6: build generate-test-files
 	@echo "$(GREEN)Running k6 JavaScript tests...$(NC)"
+	@echo "id,name,value,category\n1,alpha,100,A\n2,bravo,,B\n3,charlie,300,A\n4,delta,400,C\n5,,500,B\n" > test_process.csv
 	@if [ -f "streamloader_k6_test.js" ]; then \
 		$(K6_BINARY) run streamloader_k6_test.js; \
 	else \
@@ -66,7 +67,15 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: tail_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "process_csv_test.js" ]; then \
+		$(K6_BINARY) run process_csv_test.js; \
+	else \
+		echo "$(RED)Error: process_csv_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
+	@echo "$(YELLOW)Cleaning up temporary test files...$(NC)"
+	@rm -f test_process.csv
 
 # Run k6 memory test
 test-memory: build generate-test-files

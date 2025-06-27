@@ -189,6 +189,9 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 						(filter.Max != nil && num > *filter.Max) {
 						shouldDrop = true
 					}
+				} else {
+					// Treat non-numeric values as not satisfying the range
+					shouldDrop = true
 				}
 			}
 			if shouldDrop {
@@ -233,16 +236,23 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 
 		// Build projected row
 		var projected []interface{}
-		for _, field := range options.Fields {
-			switch field.Type {
-			case "column":
-				if field.Column < len(row) {
-					projected = append(projected, row[field.Column])
-				} else {
-					projected = append(projected, "")
+		if len(options.Fields) > 0 {
+			for _, field := range options.Fields {
+				switch field.Type {
+				case "column":
+					if field.Column < len(row) {
+						projected = append(projected, row[field.Column])
+					} else {
+						projected = append(projected, "")
+					}
+				case "fixed":
+					projected = append(projected, field.Value)
 				}
-			case "fixed":
-				projected = append(projected, field.Value)
+			}
+		} else {
+			// If no fields are specified, project all columns as strings
+			for _, col := range row {
+				projected = append(projected, col)
 			}
 		}
 

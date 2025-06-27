@@ -148,6 +148,36 @@ export default function () {
 }
 ```
 
+### Advanced CSV Processing
+
+For more advanced CSV processing, you can use `processCsvFile` to filter, transform, group, and project data in a single pass. This is highly memory-efficient for large datasets.
+
+```js
+import streamloader from 'k6/x/streamloader';
+
+export default function () {
+    const options = {
+        skipHeader: true,
+        filters: [
+            { type: 'emptyString', column: 1 },
+            { type: 'regexMatch', column: 3, pattern: '^[A-C]$' },
+            { type: 'valueRange', column: 2, min: 200, max: 350 },
+        ],
+        transforms: [
+            { type: 'fixedValue', column: 1, value: 'processed' },
+            { type: 'substring', column: 3, start: 0, length: 1 },
+        ],
+        groupBy: { column: 3 },
+        fields: [
+            { type: 'column', column: 0 },
+            { type: 'column', column: 1 },
+        ],
+    };
+    const result = streamloader.processCsvFile('data.csv', options);
+    // result contains the processed and grouped data
+}
+```
+
 ## Supported formats
 
 ### JSON Formats
@@ -176,6 +206,7 @@ export default function () {
 - `streamloader.go`: Extension source code with JSON and CSV loading functions
 - `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
 - `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
+- `process_csv_test.js`: k6 JS test script for the ProcessCsvFile function
 - `head_test.js`: k6 JS test script for the Head function
 - `tail_test.js`: k6 JS test script for the Tail function
 - `Makefile`: Build and test automation
