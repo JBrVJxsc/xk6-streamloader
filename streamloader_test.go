@@ -1116,6 +1116,50 @@ Simple Product,No quotes needed,9.99,basic`
 	}
 }
 
+func TestLoadCSV_AllFieldsQuoted(t *testing.T) {
+	csvData := `"name","description","price"
+"Widget A","A, simple widget","19.99"
+"Gadget B","A complex gadget","49.99"`
+
+	tmpfile, err := os.CreateTemp("", "test-all-quoted-*.csv")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(csvData)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadCSV(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadCSV failed: %v", err)
+	}
+
+	if len(result) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(result))
+	}
+
+	expectedHeader := []string{"name", "description", "price"}
+	for i, expected := range expectedHeader {
+		if result[0][i] != expected {
+			t.Errorf("expected header %d to be %s, got %s", i, expected, result[0][i])
+		}
+	}
+
+	if result[1][0] != "Widget A" {
+		t.Errorf("expected row 1 col 0 to be 'Widget A', got '%s'", result[1][0])
+	}
+	if result[1][1] != "A, simple widget" {
+		t.Errorf("expected row 1 col 1 to be 'A, simple widget', got '%s'", result[1][1])
+	}
+	if result[2][1] != "A complex gadget" {
+		t.Errorf("expected row 2 col 1 to be 'A complex gadget', got '%s'", result[2][1])
+	}
+}
+
 func TestLoadCSV_EmptyFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "test-empty-*.csv")
 	if err != nil {

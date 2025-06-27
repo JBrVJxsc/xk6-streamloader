@@ -435,4 +435,19 @@ And some special characters: !@#$%^&*() `;
     });
 
     console.log('All JSON and CSV tests completed successfully!');
+
+    // Additional tests
+    check(csvSpecial, {
+        'special chars loaded correctly': (r) => r.length === 2 && r[1][0] === 'special-chars' && r[1][1] === 'a, "b", c' && r[1][2] === 'd|e'
+    });
+
+    // 21. All fields quoted
+    const csvAllQuoted = streamloader.loadCSV('all_quoted.csv');
+    console.log('csvAllQuoted:', JSON.stringify(csvAllQuoted));
+    check(csvAllQuoted, {
+        'all quoted loaded correctly': (r) => r.length === 3,
+        'all quoted header correct': (r) => r[0][0] === 'name' && r[0][1] === 'description' && r[0][2] === 'price',
+        'all quoted row 1 correct': (r) => r[1][0] === 'Widget A' && r[1][1] === 'A, simple widget' && r[1][2] === '19.99',
+        'all quoted row 2 correct': (r) => r[2][0] === 'Gadget B' && r[2][1] === 'A complex gadget' && r[2][2] === '49.99',
+    });
 } 
