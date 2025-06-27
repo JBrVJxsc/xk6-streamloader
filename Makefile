@@ -54,6 +54,12 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: streamloader_k6_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "head_test.js" ]; then \
+		$(K6_BINARY) run head_test.js; \
+	else \
+		echo "$(RED)Error: head_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
 
 # Run k6 memory test

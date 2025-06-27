@@ -203,6 +203,41 @@ func (StreamLoader) LoadFile(filePath string) (string, error) {
 	return string(bytes), nil
 }
 
+// Head reads the first N lines of a file without loading the entire file into memory.
+// It returns the lines as a single string, with each line separated by a newline character.
+// This is useful for previewing large files without consuming excessive memory.
+//
+// Example usage:
+//
+//	first10Lines, err := streamloader.Head("large_file.txt", 10)
+func (StreamLoader) Head(filePath string, n int) (string, error) {
+	if n <= 0 {
+		return "", nil
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var lines []string
+	for i := 0; i < n && scanner.Scan(); i++ {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	if len(lines) == 0 {
+		return "", nil
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
 // isWhitespace checks for JSON whitespace characters
 func isWhitespace(b byte) bool {
 	return b == ' ' || b == '\n' || b == '\r' || b == '\t'

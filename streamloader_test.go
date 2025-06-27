@@ -1463,3 +1463,70 @@ func TestLoadFile(t *testing.T) {
 		t.Errorf("expected empty string for empty file, got %q", result)
 	}
 }
+
+func TestHead(t *testing.T) {
+	content := "line 1\nline 2\nline 3\nline 4\nline 5"
+	tmpfile, err := os.CreateTemp("", "head-test-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+
+	// Test case 1: Read first 3 lines
+	head, err := loader.Head(tmpfile.Name(), 3)
+	if err != nil {
+		t.Fatalf("Head failed: %v", err)
+	}
+	expected := "line 1\nline 2\nline 3"
+	if head != expected {
+		t.Errorf("expected '%s', got '%s'", expected, head)
+	}
+
+	// Test case 2: Read more lines than available
+	head, err = loader.Head(tmpfile.Name(), 10)
+	if err != nil {
+		t.Fatalf("Head failed: %v", err)
+	}
+	expected = content
+	if head != expected {
+		t.Errorf("expected '%s', got '%s'", expected, head)
+	}
+
+	// Test case 3: Read 0 lines
+	head, err = loader.Head(tmpfile.Name(), 0)
+	if err != nil {
+		t.Fatalf("Head failed: %v", err)
+	}
+	if head != "" {
+		t.Errorf("expected empty string, got '%s'", head)
+	}
+
+	// Test case 4: Read from an empty file
+	emptyfile, err := os.CreateTemp("", "head-test-empty-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(emptyfile.Name())
+	emptyfile.Close()
+
+	head, err = loader.Head(emptyfile.Name(), 5)
+	if err != nil {
+		t.Fatalf("Head failed: %v", err)
+	}
+	if head != "" {
+		t.Errorf("expected empty string, got '%s'", head)
+	}
+
+	// Test case 5: Non-existent file
+	_, err = loader.Head("non_existent_file.txt", 5)
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+}

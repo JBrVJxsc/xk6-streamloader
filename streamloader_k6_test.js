@@ -436,11 +436,6 @@ And some special characters: !@#$%^&*() `;
 
     console.log('All JSON and CSV tests completed successfully!');
 
-    // Additional tests
-    check(csvSpecial, {
-        'special chars loaded correctly': (r) => r.length === 2 && r[1][0] === 'special-chars' && r[1][1] === 'a, "b", c' && r[1][2] === 'd|e'
-    });
-
     // 21. All fields quoted
     const csvAllQuoted = streamloader.loadCSV('all_quoted.csv');
     console.log('csvAllQuoted:', JSON.stringify(csvAllQuoted));
@@ -450,4 +445,24 @@ And some special characters: !@#$%^&*() `;
         'all quoted row 1 correct': (r) => r[1][0] === 'Widget A' && r[1][1] === 'A, simple widget' && r[1][2] === '19.99',
         'all quoted row 2 correct': (r) => r[2][0] === 'Gadget B' && r[2][1] === 'A complex gadget' && r[2][2] === '49.99',
     });
-} 
+
+    // 22. CSV with special characters
+    const csvSpecial = streamloader.loadCSV('specialchars.csv');
+    console.log('csvSpecial raw output:', JSON.stringify(csvSpecial));
+    if (csvSpecial.length > 1) {
+        console.log('Failing row data:', JSON.stringify(csvSpecial[1]));
+    }
+    check(csvSpecial, {
+        'csv with special characters has 2 rows': (s) => s.length === 2,
+        'csv special characters row 1 correct': (s) => s[0][0] === 'header1' && s[0][1] === 'header2',
+        'csv special characters row 2 correct': (s) => s[1][0] === 'value with "quotes"' && s[1][1] === 'value with ,comma',
+    });
+
+    // 23. Whitespace Handling
+    const csvWhitespace = streamloader.loadCSV('quoted.csv');
+    console.log('csvWhitespace:', JSON.stringify(csvWhitespace));
+    check(csvWhitespace, {
+        'csv with whitespace has correct rows': (s) => s.length === 5,
+        'csv with whitespace row 1 correct': (s) => s[1][0] === 'Widget A' && s[1][1] === 'A simple, useful widget',
+    });
+}

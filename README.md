@@ -80,6 +80,24 @@ export default function () {
 }
 ```
 
+### Head (First N Lines)
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Load the first 10 lines of a file
+    const first10Lines = streamloader.head('path/to/your/large_file.txt', 10);
+    
+    check(first10Lines, {
+        'head is not empty': (content) => content.length > 0,
+    });
+
+    console.log(`First 10 lines: ${first10Lines}`);
+}
+```
+
 ### CSV Loading
 
 ```js
@@ -140,6 +158,7 @@ export default function () {
 - `streamloader.go`: Extension source code with JSON and CSV loading functions
 - `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
 - `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
+- `head_test.js`: k6 JS test script for the Head function
 - `Makefile`: Build and test automation
 - `generate_large_csv.py`: Script to generate large CSV files for testing
 
@@ -173,6 +192,13 @@ export default function () {
 ### streamloader.loadFile(filePath)
 - **Parameters**: `filePath` (string) - Path to the file
 - **Returns**: String containing the entire file content
+- **Throws**: Error if file not found or cannot be read
+
+### streamloader.head(filePath, n)
+- **Parameters**: 
+  - `filePath` (string) - Path to the file
+  - `n` (int) - Number of lines to read from the beginning of the file
+- **Returns**: String containing the first `n` lines of the file
 - **Throws**: Error if file not found or cannot be read
 
 ### streamloader.loadCSV(filePath)
