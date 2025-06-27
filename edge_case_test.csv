@@ -1,0 +1,13 @@
+id,name,price,quantity,category,description,extra
+1001,"Product with, comma",99.99,5,Electronics,"Regular description",normal
+1002,"Product with ""quotes""",199.99,10,Electronics,"Has ""quotes""",normal
+1003,Product missing columns,299.99
+1004,Product with unicode © ®,399.99,15,Electronics,"Unicode: 你好世界",special
+1005,Product with inconsistent,499.99,20,Electronics,"Normal desc",normal,extra1,extra2
+1006,,599.99,25,Electronics,"Empty name",normal
+1007,Mixed types,not-a-number,thirty,Electronics,"Type mismatch",normal
+1008,Multi-line product,"Multi
+line 
+description",49.99,5,Electronics,"Description",normal
+1009,特殊字符产品,88.88,8,Electronics,"Non-ASCII product name",international
+1010,Null product,0,0,Unknown,,empty 

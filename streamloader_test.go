@@ -1,6 +1,7 @@
 package streamloader
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -1967,6 +1968,408 @@ func TestProcessCsvFile(t *testing.T) {
 			if len(row[3].(string)) > length {
 				t.Errorf("Description not truncated, got length %d > %d", len(row[3].(string)), length)
 			}
+		}
+	})
+
+	// Add advanced edge case tests for ProcessCsvFile
+	t.Run("Edge Case: CSV with inconsistent columns", func(t *testing.T) {
+		csvData := `id,name,value
+1,alpha,100
+2,bravo,200,extra
+3,charlie
+4,delta,400,extra1,extra2
+`
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+				{Type: "column", Column: 2},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Check handling of missing values and extra columns
+		if len(result) != 4 {
+			t.Fatalf("Expected 4 rows, got %d", len(result))
+		}
+
+		// Row with missing column should have empty string
+		if result[2][2] != "" {
+			t.Errorf("Expected empty string for missing column, got %q", result[2][2])
+		}
+
+		// Extra columns should be ignored
+		if len(result[1]) > 3 {
+			t.Errorf("Extra columns weren't ignored, got %d columns", len(result[1]))
+		}
+	})
+
+	t.Run("Edge Case: CSV with special characters", func(t *testing.T) {
+		csvData := `id,name,value
+1,"alpha, with comma",100
+2,"bravo ""quoted""",200
+3,charlie's apostrophe,300
+4,"multi
+line",400
+`
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Check correct handling of commas within quotes
+		if result[0][1] != "alpha, with comma" {
+			t.Errorf("Failed to handle comma within quotes, got %q", result[0][1])
+		}
+
+		// Check correct handling of quotes within quotes
+		if result[1][1] != "bravo \"quoted\"" {
+			t.Errorf("Failed to handle quotes within quotes, got %q", result[1][1])
+		}
+
+		// Check handling of apostrophes
+		if result[2][1] != "charlie's apostrophe" {
+			t.Errorf("Failed to handle apostrophe, got %q", result[2][1])
+		}
+
+		// Check multi-line values
+		if result[3][1] != "multi\nline" {
+			t.Errorf("Failed to handle multi-line values, got %q", result[3][1])
+		}
+	})
+
+	t.Run("Error Handling: Invalid column index", func(t *testing.T) {
+		csvData := `id,name,value
+1,alpha,100
+`
+		filePath := createTempCsv(t, csvData)
+
+		// Test invalid column in filters
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Filters: []FilterConfig{
+				{Type: "emptyString", Column: 999}, // Column index beyond bounds
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile should handle invalid column index gracefully: %v", err)
+		}
+
+		if len(result) != 1 {
+			t.Errorf("Expected 1 row despite invalid column index, got %d", len(result))
+		}
+
+		// Test invalid column in transforms
+		options = ProcessCsvOptions{
+			SkipHeader: true,
+			Transforms: []TransformConfig{
+				{Type: "parseInt", Column: 999}, // Column index beyond bounds
+			},
+		}
+		result, err = loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile should handle invalid transform column gracefully: %v", err)
+		}
+
+		// Test invalid column in fields
+		options = ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 999}, // Column index beyond bounds
+			},
+		}
+		result, err = loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile should handle invalid field column gracefully: %v", err)
+		}
+
+		if len(result[0]) != 1 || result[0][0] != "" {
+			t.Errorf("Expected empty string for invalid column index in projection, got %q", result[0][0])
+		}
+	})
+
+	t.Run("Error Handling: Invalid regex pattern", func(t *testing.T) {
+		csvData := `id,name,value
+1,alpha,100
+`
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Filters: []FilterConfig{
+				{Type: "regexMatch", Column: 1, Pattern: "[invalid"}, // Invalid regex pattern
+			},
+		}
+		loader := StreamLoader{}
+		_, err := loader.ProcessCsvFile(filePath, options)
+		if err == nil {
+			t.Fatal("ProcessCsvFile should return error for invalid regex pattern")
+		}
+		if !strings.Contains(err.Error(), "invalid regex") {
+			t.Errorf("Expected error about invalid regex, got %v", err)
+		}
+	})
+
+	t.Run("Complex Filtering: Multiple conditions", func(t *testing.T) {
+		csvData := `id,name,value,category
+1,alpha,100,A
+2,bravo,200,B
+3,charlie,300,A
+4,delta,400,B
+5,echo,500,C
+6,,600,C
+`
+		filePath := createTempCsv(t, csvData)
+		min := 200.0
+		max := 500.0
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Filters: []FilterConfig{
+				{Type: "emptyString", Column: 1},                      // Filter out rows with empty name
+				{Type: "regexMatch", Column: 3, Pattern: "^[AB]$"},    // Only A or B categories
+				{Type: "valueRange", Column: 2, Min: &min, Max: &max}, // Values between 200-500
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Only rows 2, 3, 4 should pass all filters
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 rows after complex filtering, got %d", len(result))
+		}
+
+		// Verify specific rows
+		idFound := make(map[string]bool)
+		for _, row := range result {
+			idFound[row[0].(string)] = true
+		}
+
+		expectedIDs := []string{"2", "3", "4"}
+		for _, id := range expectedIDs {
+			if !idFound[id] {
+				t.Errorf("Expected to find row with ID %s after filtering", id)
+			}
+		}
+	})
+
+	t.Run("Transform Combinations: Sequential transforms", func(t *testing.T) {
+		csvData := `id,name,value
+1,ALPHA,100
+2,BRAVO,200
+`
+		filePath := createTempCsv(t, csvData)
+
+		// Apply multiple transforms to the same column
+		length := 3
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Transforms: []TransformConfig{
+				// First transform: convert to lowercase (using substring to apply transform)
+				{Type: "substring", Column: 1, Start: 0, Length: &length},
+				// Second transform: replace with fixed value
+				{Type: "fixedValue", Column: 1, Value: "transformed"},
+			},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Check that transforms were applied in sequence
+		for _, row := range result {
+			if row[1] != "transformed" {
+				t.Errorf("Sequential transforms not applied correctly, got %q", row[1])
+			}
+		}
+	})
+
+	t.Run("GroupBy: Verify Group Integrity", func(t *testing.T) {
+		csvData := `id,name,value,category
+1,alpha,100,A
+2,bravo,200,B
+3,charlie,300,A
+4,delta,400,B
+5,echo,500,C
+`
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			GroupBy:    &GroupByConfig{Column: 3}, // Group by category
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0}, // id
+				{Type: "column", Column: 2}, // value
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// There should be 3 groups (A, B, C)
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 groups, got %d", len(result))
+		}
+
+		// Helper to find a group by its first ID
+		findGroupByFirstID := func(id string) []interface{} {
+			for _, group := range result {
+				if len(group) > 0 && group[0] == id {
+					return group
+				}
+			}
+			return nil
+		}
+
+		// Check group A (IDs 1,3)
+		groupA := findGroupByFirstID("1")
+		if groupA == nil {
+			t.Fatal("Group A not found")
+		}
+		if len(groupA) != 4 { // 2 rows x 2 fields
+			t.Errorf("Group A should have 4 items, got %d", len(groupA))
+		}
+
+		// Check group B (IDs 2,4)
+		groupB := findGroupByFirstID("2")
+		if groupB == nil {
+			t.Fatal("Group B not found")
+		}
+		if len(groupB) != 4 { // 2 rows x 2 fields
+			t.Errorf("Group B should have 4 items, got %d", len(groupB))
+		}
+
+		// Check group C (ID 5)
+		groupC := findGroupByFirstID("5")
+		if groupC == nil {
+			t.Fatal("Group C not found")
+		}
+		if len(groupC) != 2 { // 1 row x 2 fields
+			t.Errorf("Group C should have 2 items, got %d", len(groupC))
+		}
+	})
+
+	t.Run("Advanced Projections: Mixed field types", func(t *testing.T) {
+		csvData := `id,name,value
+1,alpha,100
+2,bravo,200
+`
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},        // id from source
+				{Type: "fixed", Value: 42},         // integer constant
+				{Type: "fixed", Value: "constant"}, // string constant
+				{Type: "fixed", Value: 3.14},       // float constant
+				{Type: "fixed", Value: true},       // boolean constant
+				{Type: "fixed", Value: nil},        // nil value
+				{Type: "column", Column: 2},        // value from source
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Check correct number of fields
+		if len(result[0]) != 7 {
+			t.Fatalf("Expected 7 fields in projection, got %d", len(result[0]))
+		}
+
+		// Check field types and values for first row
+		row := result[0]
+		if row[0] != "1" {
+			t.Errorf("Expected id 1, got %v", row[0])
+		}
+		if row[1] != 42 {
+			t.Errorf("Expected 42, got %v", row[1])
+		}
+		if row[2] != "constant" {
+			t.Errorf("Expected 'constant', got %v", row[2])
+		}
+		if row[3] != 3.14 {
+			t.Errorf("Expected 3.14, got %v", row[3])
+		}
+		if row[4] != true {
+			t.Errorf("Expected true, got %v", row[4])
+		}
+		if row[5] != nil {
+			t.Errorf("Expected nil, got %v", row[5])
+		}
+		if row[6] != "100" {
+			t.Errorf("Expected value 100, got %v", row[6])
+		}
+	})
+
+	t.Run("Unicode and UTF-8 handling", func(t *testing.T) {
+		csvData := "id,name,value\n1,\"utf8 chars: ©®Ⓐ☺💯\",100\n2,\"more: 你好世界\",200"
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+			},
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed with UTF-8 data: %v", err)
+		}
+
+		// Check UTF-8 strings were preserved correctly
+		if result[0][1] != "utf8 chars: ©®Ⓐ☺💯" {
+			t.Errorf("UTF-8 not preserved correctly, got %q", result[0][1])
+		}
+
+		if result[1][1] != "more: 你好世界" {
+			t.Errorf("UTF-8 Chinese chars not preserved correctly, got %q", result[1][1])
+		}
+	})
+
+	t.Run("Handling extremely large values", func(t *testing.T) {
+		// Generate a large string value
+		var largeValue strings.Builder
+		for i := 0; i < 50000; i++ {
+			largeValue.WriteString("X")
+		}
+
+		csvData := fmt.Sprintf("id,name,value\n1,\"large value\",\"%s\"", largeValue.String())
+		filePath := createTempCsv(t, csvData)
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+		}
+		loader := StreamLoader{}
+		result, err := loader.ProcessCsvFile(filePath, options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed with large value: %v", err)
+		}
+
+		// Check that large value was read correctly
+		if len(result[0][2].(string)) != 50000 {
+			t.Errorf("Large value not preserved correctly, got length %d", len(result[0][2].(string)))
 		}
 	})
 }
