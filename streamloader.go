@@ -24,16 +24,17 @@ type StreamLoader struct{}
 // Each row is represented as []string, and the entire result is [][]string.
 // The function reads the file incrementally to minimize memory usage and avoid spikes.
 // It automatically detects common CSV delimiters and handles quoted fields properly.
-// 
+//
 // Options for memory optimization:
 // - Uses buffered reading with configurable buffer size
 // - Processes one row at a time instead of loading entire file
 // - Supports files of any size without significant memory overhead
 //
 // Example usage:
-//   records, err := streamloader.LoadCSV("data.csv")
-//   // records[0] contains the first row as []string
-//   // records[1] contains the second row as []string, etc.
+//
+//	records, err := streamloader.LoadCSV("data.csv")
+//	// records[0] contains the first row as []string
+//	// records[1] contains the second row as []string, etc.
 func (StreamLoader) LoadCSV(filePath string) ([][]string, error) {
 	// 1) Open file
 	file, err := os.Open(filePath)
@@ -47,16 +48,16 @@ func (StreamLoader) LoadCSV(filePath string) ([][]string, error) {
 
 	// 3) Create CSV reader with standard settings
 	csvReader := csv.NewReader(reader)
-	
+
 	// Configure CSV reader for robust parsing
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
-	
+
 	// 4) Read all records incrementally
 	var records [][]string
-	
+
 	for {
 		record, err := csvReader.Read()
 		if err == io.EOF {
@@ -65,13 +66,13 @@ func (StreamLoader) LoadCSV(filePath string) ([][]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse CSV at line %d: %w", len(records)+1, err)
 		}
-		
+
 		// Make a copy of the record to avoid memory sharing issues
 		recordCopy := make([]string, len(record))
 		copy(recordCopy, record)
 		records = append(records, recordCopy)
 	}
-	
+
 	return records, nil
 }
 
@@ -185,6 +186,21 @@ func (StreamLoader) LoadJSON(filePath string) (any, error) {
 		}
 		return objects, nil
 	}
+}
+
+// LoadFile opens the given file and reads its entire content into a string.
+// This function is optimized for performance and is suitable for loading moderate-sized files.
+// It uses os.ReadFile for an efficient single-read operation.
+//
+// Example usage:
+//
+//	content, err := streamloader.LoadFile("data.txt")
+func (StreamLoader) LoadFile(filePath string) (string, error) {
+	bytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+	return string(bytes), nil
 }
 
 // isWhitespace checks for JSON whitespace characters

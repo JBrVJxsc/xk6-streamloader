@@ -62,6 +62,24 @@ export default function () {
 }
 ```
 
+### File Loading
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Load an entire file as a single string
+    const fileContent = streamloader.loadFile('path/to/your/file.txt');
+    
+    check(fileContent, {
+        'file is not empty': (content) => content.length > 0,
+    });
+
+    console.log(`File content: ${fileContent}`);
+}
+```
+
 ### CSV Loading
 
 ```js
@@ -125,6 +143,10 @@ export default function () {
 - `Makefile`: Build and test automation
 - `generate_large_csv.py`: Script to generate large CSV files for testing
 
+### File Test Data Files:
+- `test.txt`: Basic text file for `loadFile` testing.
+- `empty.txt`: Empty text file for `loadFile` testing.
+
 ### JSON Test Data Files:
 - `samples.json`: Basic JSON array with simple objects
 - `complex.json`: Complex nested JSON structures with various data types
@@ -147,6 +169,11 @@ export default function () {
 - **Parameters**: `filePath` (string) - Path to the JSON file
 - **Returns**: Array (for JSON arrays/NDJSON) or Object (for JSON objects)
 - **Throws**: Error if file not found or JSON is malformed
+
+### streamloader.loadFile(filePath)
+- **Parameters**: `filePath` (string) - Path to the file
+- **Returns**: String containing the entire file content
+- **Throws**: Error if file not found or cannot be read
 
 ### streamloader.loadCSV(filePath)
 - **Parameters**: `filePath` (string) - Path to the CSV file

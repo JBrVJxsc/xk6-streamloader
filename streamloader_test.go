@@ -1373,3 +1373,49 @@ Jane,25,Los Angeles`
 		t.Errorf("expected field with trailing spaces 'John  ', got '%s'", result[1][0])
 	}
 }
+
+func TestLoadFile(t *testing.T) {
+	// Test case 1: Successful file read
+	content := "Hello, world!\nThis is a test file."
+	tmpfile, err := os.CreateTemp("", "testfile-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+	result, err := loader.LoadFile(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("LoadFile failed: %v", err)
+	}
+	if result != content {
+		t.Errorf("expected content %q, got %q", content, result)
+	}
+
+	// Test case 2: File not found
+	_, err = loader.LoadFile("non_existent_file.txt")
+	if err == nil {
+		t.Error("expected error for missing file, got nil")
+	}
+
+	// Test case 3: Empty file
+	emptyFile, err := os.CreateTemp("", "empty-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create empty temp file: %v", err)
+	}
+	defer os.Remove(emptyFile.Name())
+	emptyFile.Close()
+
+	result, err = loader.LoadFile(emptyFile.Name())
+	if err != nil {
+		t.Fatalf("LoadFile failed for empty file: %v", err)
+	}
+	if result != "" {
+		t.Errorf("expected empty string for empty file, got %q", result)
+	}
+}

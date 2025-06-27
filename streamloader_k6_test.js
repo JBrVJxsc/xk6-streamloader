@@ -320,6 +320,7 @@ export default function () {
         'CSV last data row age': (s) => s[4][1] === '28',
         'CSV last data row city': (s) => s[4][2] === 'Houston',
         'CSV last data row active': (s) => s[4][3] === 'false',
+        'malformed CSV returns some records': (csv) => csv.length > 0,
     });
 
     // 16. Quoted CSV test  
@@ -407,6 +408,31 @@ export default function () {
             'error for missing CSV file': (err) => String(err).includes('nonexistent_file') || String(err).toLowerCase().includes('open')
         });
     }
+
+    // File Loading Tests
+    
+    // 1. Normal case: valid file
+    const fileContent = streamloader.loadFile('test.txt');
+    const expectedContent = `This is a test file for the loadFile function.
+It contains multiple lines.
+And some special characters: !@#$%^&*() `;
+    check(null, {
+        'loaded file content matches expected': () => fileContent === expectedContent,
+    });
+
+    // 2. Error case: missing file
+    try {
+        streamloader.loadFile('no_such_file.txt');
+        fail('Expected error for missing file');
+    } catch (e) {
+        check(e, { 'error for missing file': (err) => String(err).includes('no_such_file') || String(err).includes('no such file') });
+    }
+
+    // 3. Edge case: empty file
+    const emptyContent = streamloader.loadFile('empty.txt');
+    check(null, {
+        'file with single space returns a space': () => emptyContent === ' ',
+    });
 
     console.log('All JSON and CSV tests completed successfully!');
 } 
