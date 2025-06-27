@@ -40,7 +40,7 @@ test: test-go test-k6 test-memory
 	@echo "$(GREEN)✓ All tests completed successfully!$(NC)"
 
 # Run Go unit tests
-test-go:
+test-go: generate-test-files
 	@echo "$(GREEN)Running Go unit tests...$(NC)"
 	go test -v ./...
 	@echo "$(GREEN)✓ Go tests completed$(NC)"
@@ -48,7 +48,6 @@ test-go:
 # Run k6 JavaScript tests
 test-k6: build generate-test-files
 	@echo "$(GREEN)Running k6 JavaScript tests...$(NC)"
-	@echo "id,name,value,category\n1,alpha,100,A\n2,bravo,,B\n3,charlie,300,A\n4,delta,400,C\n5,,500,B\n" > test_process.csv
 	@if [ -f "streamloader_k6_test.js" ]; then \
 		$(K6_BINARY) run streamloader_k6_test.js; \
 	else \
@@ -121,4 +120,5 @@ generate-test-files:
 clean:
 	@echo "$(GREEN)Cleaning build artifacts...$(NC)"
 	rm -rf $(BUILD_DIR)
+	rm -f large.json large.csv large_file.txt
 	@echo "$(GREEN)✓ Clean completed$(NC)" 

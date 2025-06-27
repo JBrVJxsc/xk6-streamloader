@@ -1626,7 +1626,7 @@ func TestProcessCsvFile(t *testing.T) {
 			}
 			for j := range expected[i] {
 				if expected[i][j] != actual[i][j] {
-					t.Errorf("row %d, col %d: expected %v, got %v", i, j, expected[i][j], actual[i][j])
+					t.Errorf("row %d, col %d: expected %q, got %q", i, j, expected[i][j], actual[i][j])
 				}
 			}
 		}
@@ -1789,5 +1789,30 @@ func TestProcessCsvFile(t *testing.T) {
 		if len(result) != 0 {
 			t.Errorf("expected 0 rows, got %d", len(result))
 		}
+	})
+
+	t.Run("Processing committed test_process.csv", func(t *testing.T) {
+		loader := StreamLoader{}
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0},
+				{Type: "column", Column: 1},
+				{Type: "column", Column: 2},
+				{Type: "column", Column: 3},
+			},
+		}
+		result, err := loader.ProcessCsvFile("test_process.csv", options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed for test_process.csv: %v", err)
+		}
+		expected := [][]interface{}{
+			{"1", "alpha", "100", "A"},
+			{"2", "bravo", "", "B"},
+			{"3", "charlie", "300", "A"},
+			{"4", "delta", "400", "C"},
+			{"5", "", "500", "B"},
+		}
+		assertEqual(t, expected, result)
 	})
 }

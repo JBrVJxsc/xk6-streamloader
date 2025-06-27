@@ -164,6 +164,11 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 		row := make([]string, len(record))
 		copy(row, record)
 
+		// Trim whitespace from all fields to handle dirty data
+		for i, field := range row {
+			row[i] = strings.TrimSpace(field)
+		}
+
 		// Apply filters
 		shouldDrop := false
 		for _, filter := range options.Filters {
