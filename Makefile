@@ -11,7 +11,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: all build clean test test-go test-k6 help generate-test-files
+.PHONY: all build clean test test-go test-k6 test-memory help generate-test-files
 
 # Default target
 all: build test
@@ -24,6 +24,7 @@ help:
 	@echo "  $(YELLOW)test$(NC)       - Run all tests (Go + k6)"
 	@echo "  $(YELLOW)test-go$(NC)    - Run Go unit tests only"
 	@echo "  $(YELLOW)test-k6$(NC)    - Run k6 JavaScript tests only"
+	@echo "  $(YELLOW)test-memory$(NC) - Run k6 memory comparison tests only"
 	@echo "  $(YELLOW)clean$(NC)      - Clean build artifacts"
 	@echo "  $(YELLOW)help$(NC)       - Show this help message"
 
@@ -35,7 +36,7 @@ build:
 	@echo "$(GREEN)✓ Build complete: $(K6_BINARY)$(NC)"
 
 # Run all tests
-test: test-go test-k6
+test: test-go test-k6 test-memory
 	@echo "$(GREEN)✓ All tests completed successfully!$(NC)"
 
 # Run Go unit tests
@@ -54,6 +55,24 @@ test-k6: build generate-test-files
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
+
+# Run k6 memory test
+test-memory: build generate-test-files
+	@echo "$(GREEN)Running k6 memory test for built-in open()...$(NC)"
+	@if [ -f "memory_test_open.js" ]; then \
+		$(K6_BINARY) run memory_test_open.js; \
+	else \
+		echo "$(RED)Error: memory_test_open.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Running k6 memory test for streamloader.loadFile()...$(NC)"
+	@if [ -f "memory_test_streamloader.js" ]; then \
+		$(K6_BINARY) run memory_test_streamloader.js; \
+	else \
+		echo "$(RED)Error: memory_test_streamloader.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✓ k6 memory test completed. Compare peak_rss from the summaries above.$(NC)"
 
 # Generate large test files
 generate-test-files:
