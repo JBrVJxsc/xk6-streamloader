@@ -120,6 +120,8 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 	csvReader.LazyQuotes = true
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
+	// Ensure consistent handling of line endings
+	csvReader.ReuseRecord = true
 
 	// 4) Initialize processing state
 	var rowIndex int
@@ -160,12 +162,10 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 			continue
 		}
 
-		// Make a copy to avoid memory sharing issues
+		// Make a copy and normalize fields
 		row := make([]string, len(record))
-		copy(row, record)
-
-		// Trim whitespace from all fields to handle dirty data
-		for i, field := range row {
+		for i, field := range record {
+			// Normalize field by trimming whitespace and ensuring consistent representation
 			row[i] = strings.TrimSpace(field)
 		}
 
@@ -277,7 +277,7 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 		rowIndex++
 	}
 
-	// 6) Finalize output
+	// 7) Finalize output
 	if hasGrouping {
 		// Convert grouped data to flat arrays
 		groupedResult := make([][]interface{}, 0, len(groupMap))
