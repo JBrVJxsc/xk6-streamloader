@@ -34,3 +34,9 @@ build
 k6
 
 .DS_Store
+
+build/
+*.pprof
+large.json
+large.csv
+large_file.txt

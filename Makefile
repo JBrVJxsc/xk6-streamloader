@@ -11,7 +11,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: all build clean test test-go test-k6 help
+.PHONY: all build clean test test-go test-k6 help generate-test-files
 
 # Default target
 all: build test
@@ -45,7 +45,7 @@ test-go:
 	@echo "$(GREEN)✓ Go tests completed$(NC)"
 
 # Run k6 JavaScript tests
-test-k6: build
+test-k6: build generate-test-files
 	@echo "$(GREEN)Running k6 JavaScript tests...$(NC)"
 	@if [ -f "streamloader_k6_test.js" ]; then \
 		$(K6_BINARY) run streamloader_k6_test.js; \
@@ -54,6 +54,14 @@ test-k6: build
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
+
+# Generate large test files
+generate-test-files:
+	@echo "$(GREEN)Generating large test files...$(NC)"
+	@python3 generate_large_json.py
+	@python3 generate_large_csv.py
+	@python3 generate_large_file.py
+	@echo "$(GREEN)✓ Large test files generated$(NC)"
 
 # Clean build artifacts
 clean:
