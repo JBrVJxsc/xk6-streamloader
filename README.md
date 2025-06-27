@@ -6,9 +6,11 @@ A k6 extension for efficiently loading large JSON arrays, newline-delimited JSON
 
 - **JSON Support**: Load JSON arrays, NDJSON, and JSON objects
 - **CSV Support**: Stream CSV files with incremental parsing
+- **Advanced CSV Processing**: Filter, transform, group, and project CSV data in a single pass
 - **Memory Efficient**: Minimal memory footprint with streaming architecture
 - **Large File Support**: Handle files of any size without memory spikes
 - **Robust Parsing**: Handle quoted fields, special characters, and malformed data gracefully
+- **Edge Case Handling**: Graceful handling of Unicode characters, multi-line fields, inconsistent columns, and more
 
 ## Build
 
@@ -164,6 +166,7 @@ export default function () {
             { type: 'valueRange', column: 2, min: 200, max: 350 },
         ],
         transforms: [
+            { type: 'parseInt', column: 2 },
             { type: 'fixedValue', column: 1, value: 'processed' },
             { type: 'substring', column: 3, start: 0, length: 1 },
         ],
@@ -171,12 +174,30 @@ export default function () {
         fields: [
             { type: 'column', column: 0 },
             { type: 'column', column: 1 },
+            { type: 'fixed', value: 'constant' },
         ],
     };
     const result = streamloader.processCsvFile('data.csv', options);
     // result contains the processed and grouped data
 }
 ```
+
+#### ProcessCsvFile Options
+
+- **skipHeader** (boolean): Whether to skip the first row as header (default: true)
+- **filters** (array): Rules to drop unwanted rows
+  - `{ type: "emptyString", column: N }` - Drop rows with empty value in column N
+  - `{ type: "regexMatch", column: N, pattern: "regex" }` - Keep only rows where column N matches regex
+  - `{ type: "valueRange", column: N, min: X, max: Y }` - Keep only rows where column N is between X and Y
+- **transforms** (array): Modify values in-place
+  - `{ type: "parseInt", column: N }` - Convert string to integer
+  - `{ type: "fixedValue", column: N, value: V }` - Replace with constant value
+  - `{ type: "substring", column: N, start: S, length: L }` - Extract substring from column
+- **groupBy** (object): Optional grouping
+  - `{ column: N }` - Group results by column N
+- **fields** (array): Output column selection and projection
+  - `{ type: "column", column: N }` - Select column N from input
+  - `{ type: "fixed", value: V }` - Output constant value
 
 ## Supported formats
 
@@ -191,6 +212,8 @@ export default function () {
 - **Variable columns**: Supports CSV files with inconsistent column counts
 - **Unicode support**: Handles special characters and international text
 - **Large files**: Memory-efficient processing of files with thousands of rows
+- **Empty fields**: Properly handles missing values and empty fields
+- **Multi-line fields**: Supports values spanning multiple lines within quotes
 
 ## CSV Features
 
@@ -200,21 +223,27 @@ export default function () {
 - **Error Handling**: Detailed error messages with line numbers for parsing issues
 - **Whitespace Handling**: Automatically trims leading whitespace from fields
 - **Flexible Format**: Supports files with variable number of columns per row
+- **Advanced Processing**: Filter, transform, group, and project data in a single pass
 
 ## Files
 
 - `streamloader.go`: Extension source code with JSON and CSV loading functions
 - `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
 - `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
-- `process_csv_test.js`: k6 JS test script for the ProcessCsvFile function
+- `process_csv_test.js`: Basic k6 JS test script for the ProcessCsvFile function
+- `advanced_process_csv_test.js`: Advanced k6 JS tests for ProcessCsvFile with complex configurations
+- `edge_case_csv_test.js`: k6 JS tests specifically for CSV edge cases
 - `head_test.js`: k6 JS test script for the Head function
 - `tail_test.js`: k6 JS test script for the Tail function
 - `Makefile`: Build and test automation
 - `generate_large_csv.py`: Script to generate large CSV files for testing
+- `generate_large_file.py`: Script to generate large text files for testing
+- `generate_large_json.py`: Script to generate large JSON files for testing
 
 ### File Test Data Files:
 - `test.txt`: Basic text file for `loadFile` testing.
 - `empty.txt`: Empty text file for `loadFile` testing.
+- `large_file.txt`: Large text file for memory efficiency testing.
 
 ### JSON Test Data Files:
 - `samples.json`: Basic JSON array with simple objects
@@ -222,7 +251,7 @@ export default function () {
 - `object.json`: Top-level JSON object with key-value pairs
 - `bad.json`: Invalid JSON for error testing
 - `empty.json`: Empty JSON array
-- `large.json`: Large JSON array with 1000 objects
+- `large.json`: Large JSON array for memory efficiency testing
 
 ### CSV Test Data Files:
 - `basic.csv`: Basic CSV with headers and mixed data types
@@ -230,7 +259,10 @@ export default function () {
 - `empty.csv`: Empty CSV file for edge case testing
 - `headers_only.csv`: CSV with only header row
 - `malformed.csv`: Malformed CSV for error testing
-- `large.csv`: Large CSV with 10,000 rows for memory efficiency testing
+- `large.csv`: Large CSV for memory efficiency testing
+- `advanced_process.csv`: CSV file for testing ProcessCsvFile advanced features
+- `edge_case_test.csv`: CSV file with various edge cases (Unicode, multi-line fields, etc.)
+- `specialchars.csv`: CSV with special characters for robust parsing testing
 
 ## API Reference
 
@@ -262,6 +294,18 @@ export default function () {
 - **Parameters**: `filePath` (string) - Path to the CSV file
 - **Returns**: Array of arrays of strings (`[][]string`)
 - **Throws**: Error if file not found or CSV is malformed
+
+### streamloader.processCsvFile(filePath, options)
+- **Parameters**:
+  - `filePath` (string) - Path to the CSV file
+  - `options` (object) - Configuration object for processing CSV data:
+    - `skipHeader` (boolean) - Whether to skip the first row as header
+    - `filters` (array) - Row filtering rules (emptyString, regexMatch, valueRange)
+    - `transforms` (array) - Value transformation rules (parseInt, fixedValue, substring)
+    - `groupBy` (object) - Optional grouping configuration
+    - `fields` (array) - Projection field configurations
+- **Returns**: Array of arrays containing processed data, with grouping if specified
+- **Throws**: Error if file not found, CSV is malformed, or options contain invalid configurations
 
 ## Memory Efficiency
 
