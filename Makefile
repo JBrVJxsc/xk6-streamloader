@@ -59,20 +59,34 @@ test-k6: build generate-test-files
 # Run k6 memory test
 test-memory: build generate-test-files
 	@echo "$(GREEN)Running k6 memory test for built-in open()...$(NC)"
-	@if [ -f "memory_test_open.js" ]; then \
-		$(K6_BINARY) run memory_test_open.js; \
-	else \
-		echo "$(RED)Error: memory_test_open.js not found$(NC)"; \
-		exit 1; \
-	fi
+	@# Run k6 in the background, get its PID, and poll its memory usage
+	@$(K6_BINARY) run memory_test_open.js > /dev/null 2>&1 & \
+	K6_PID=$$!; \
+	MAX_RSS=0; \
+	while ps -p $$K6_PID > /dev/null; do \
+		CURRENT_RSS=$$(ps -p $$K6_PID -o rss= | awk '{print $$1}'); \
+		if [ -n "$$CURRENT_RSS" ] && [ $$CURRENT_RSS -gt $$MAX_RSS ]; then \
+			MAX_RSS=$$CURRENT_RSS; \
+		fi; \
+		sleep 0.1; \
+	done; \
+	wait $$K6_PID; \
+	echo "  => Peak memory (RSS) for open(): $$((MAX_RSS / 1024)) MB";
+
 	@echo "$(GREEN)Running k6 memory test for streamloader.loadFile()...$(NC)"
-	@if [ -f "memory_test_streamloader.js" ]; then \
-		$(K6_BINARY) run memory_test_streamloader.js; \
-	else \
-		echo "$(RED)Error: memory_test_streamloader.js not found$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)✓ k6 memory test completed. Compare peak_rss from the summaries above.$(NC)"
+	@# Run k6 in the background, get its PID, and poll its memory usage
+	@$(K6_BINARY) run memory_test_streamloader.js > /dev/null 2>&1 & \
+	K6_PID=$$!; \
+	MAX_RSS=0; \
+	while ps -p $$K6_PID > /dev/null; do \
+		CURRENT_RSS=$$(ps -p $$K6_PID -o rss= | awk '{print $$1}'); \
+		if [ -n "$$CURRENT_RSS" ] && [ $$CURRENT_RSS -gt $$MAX_RSS ]; then \
+			MAX_RSS=$$CURRENT_RSS; \
+		fi; \
+		sleep 0.1; \
+	done; \
+	wait $$K6_PID; \
+	echo "  => Peak memory (RSS) for streamloader.loadFile(): $$((MAX_RSS / 1024)) MB";
 
 # Generate large test files
 generate-test-files:
