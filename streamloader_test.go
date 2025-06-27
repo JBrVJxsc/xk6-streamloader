@@ -1852,4 +1852,121 @@ func TestProcessCsvFile(t *testing.T) {
 		assertEqual(t, expected, result)
 		t.Logf("Successfully processed file at: %s", foundPath)
 	})
+
+	t.Run("Processing advanced_process CSV", func(t *testing.T) {
+		loader := StreamLoader{}
+
+		// Check if the file exists
+		if _, err := os.Stat("advanced_process.csv"); os.IsNotExist(err) {
+			t.Skip("advanced_process.csv not found, skipping this test")
+		}
+
+		// Test with price range filtering
+		min := 300.0
+		max := 800.0
+		options := ProcessCsvOptions{
+			SkipHeader: true,
+			Filters: []FilterConfig{
+				{Type: "valueRange", Column: 2, Min: &min, Max: &max},
+			},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0}, // id
+				{Type: "column", Column: 1}, // name
+				{Type: "column", Column: 2}, // price
+			},
+		}
+
+		result, err := loader.ProcessCsvFile("advanced_process.csv", options)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile failed: %v", err)
+		}
+
+		// Verify results - prices should be between 300 and 800
+		for _, row := range result {
+			price, err := strconv.ParseFloat(row[2].(string), 64)
+			if err != nil {
+				t.Errorf("Failed to parse price %q", row[2])
+				continue
+			}
+			if price < min || price > max {
+				t.Errorf("Price %f not in range [%f, %f]", price, min, max)
+			}
+		}
+
+		// Test category grouping
+		groupOptions := ProcessCsvOptions{
+			SkipHeader: true,
+			GroupBy:    &GroupByConfig{Column: 4},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0}, // id
+				{Type: "column", Column: 1}, // name
+			},
+		}
+
+		groupResult, err := loader.ProcessCsvFile("advanced_process.csv", groupOptions)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile with grouping failed: %v", err)
+		}
+
+		// Count distinct categories in the original data to compare
+		categories := make(map[string]bool)
+		fileContent, err := os.ReadFile("advanced_process.csv")
+		if err != nil {
+			t.Fatalf("Failed to read advanced_process.csv: %v", err)
+		}
+
+		lines := strings.Split(string(fileContent), "\n")
+		for i, line := range lines {
+			if i == 0 || line == "" { // Skip header and empty lines
+				continue
+			}
+			parts := strings.Split(line, ",")
+			if len(parts) >= 5 {
+				categories[parts[4]] = true
+			}
+		}
+
+		if len(groupResult) != len(categories) {
+			t.Errorf("Expected %d groups, got %d", len(categories), len(groupResult))
+		}
+
+		// Test transforms
+		length := 5
+		transformOptions := ProcessCsvOptions{
+			SkipHeader: true,
+			Transforms: []TransformConfig{
+				{Type: "parseInt", Column: 3},                             // Convert quantity to integer
+				{Type: "fixedValue", Column: 4, Value: "Product"},         // Replace category
+				{Type: "substring", Column: 6, Start: 0, Length: &length}, // Truncate description
+			},
+			Fields: []FieldConfig{
+				{Type: "column", Column: 0}, // id
+				{Type: "column", Column: 3}, // quantity (transformed)
+				{Type: "column", Column: 4}, // category (transformed)
+				{Type: "column", Column: 6}, // description (transformed)
+			},
+		}
+
+		transformResult, err := loader.ProcessCsvFile("advanced_process.csv", transformOptions)
+		if err != nil {
+			t.Fatalf("ProcessCsvFile with transforms failed: %v", err)
+		}
+
+		for _, row := range transformResult {
+			// Check that quantity is an integer
+			if _, err := strconv.Atoi(row[1].(string)); err != nil {
+				t.Errorf("Quantity %q is not an integer", row[1])
+			}
+
+			// Check that category is transformed
+			if row[2] != "Product" {
+				t.Errorf("Category not transformed, got %q", row[2])
+			}
+
+			// Check that description is truncated
+			if len(row[3].(string)) > length {
+				t.Errorf("Description not truncated, got length %d > %d", len(row[3].(string)), length)
+			}
+		}
+	})
 }

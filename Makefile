@@ -72,8 +72,15 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: process_csv_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "advanced_process_csv_test.js" ]; then \
+		$(K6_BINARY) run advanced_process_csv_test.js; \
+	else \
+		echo "$(RED)Error: advanced_process_csv_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
-	@echo "$(YELLOW)Cleaning up temporary test files...$(NC)"
+	@echo "$(YELLOW)Cleaning up temporary test files except our permanent test files...$(NC)"
+	@# We're keeping advanced_process.csv as a permanent test file
 	@rm -f test_process.csv
 
 # Run k6 memory test
