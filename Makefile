@@ -60,6 +60,12 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: head_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "tail_test.js" ]; then \
+		$(K6_BINARY) run tail_test.js; \
+	else \
+		echo "$(RED)Error: tail_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
 
 # Run k6 memory test

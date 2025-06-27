@@ -98,6 +98,24 @@ export default function () {
 }
 ```
 
+### Tail (Last N Lines)
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Load the last 10 lines of a file
+    const last10Lines = streamloader.tail('path/to/your/large_file.txt', 10);
+    
+    check(last10Lines, {
+        'tail is not empty': (content) => content.length > 0,
+    });
+
+    console.log(`Last 10 lines: ${last10Lines}`);
+}
+```
+
 ### CSV Loading
 
 ```js
@@ -159,6 +177,7 @@ export default function () {
 - `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
 - `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
 - `head_test.js`: k6 JS test script for the Head function
+- `tail_test.js`: k6 JS test script for the Tail function
 - `Makefile`: Build and test automation
 - `generate_large_csv.py`: Script to generate large CSV files for testing
 
@@ -199,6 +218,13 @@ export default function () {
   - `filePath` (string) - Path to the file
   - `n` (int) - Number of lines to read from the beginning of the file
 - **Returns**: String containing the first `n` lines of the file
+- **Throws**: Error if file not found or cannot be read
+
+### streamloader.tail(filePath, n)
+- **Parameters**:
+  - `filePath` (string) - Path to the file
+  - `n` (int) - Number of lines to read from the end of the file
+- **Returns**: String containing the last `n` lines of the file
 - **Throws**: Error if file not found or cannot be read
 
 ### streamloader.loadCSV(filePath)

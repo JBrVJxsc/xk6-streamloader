@@ -1530,3 +1530,70 @@ func TestHead(t *testing.T) {
 		t.Error("expected error for non-existent file, got nil")
 	}
 }
+
+func TestTail(t *testing.T) {
+	content := "line 1\nline 2\nline 3\nline 4\nline 5"
+	tmpfile, err := os.CreateTemp("", "tail-test-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		t.Fatalf("failed to write to temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	loader := StreamLoader{}
+
+	// Test case 1: Read last 3 lines
+	tail, err := loader.Tail(tmpfile.Name(), 3)
+	if err != nil {
+		t.Fatalf("Tail failed: %v", err)
+	}
+	expected := "line 3\nline 4\nline 5"
+	if tail != expected {
+		t.Errorf("expected '%s', got '%s'", expected, tail)
+	}
+
+	// Test case 2: Read more lines than available
+	tail, err = loader.Tail(tmpfile.Name(), 10)
+	if err != nil {
+		t.Fatalf("Tail failed: %v", err)
+	}
+	expected = content
+	if tail != expected {
+		t.Errorf("expected '%s', got '%s'", expected, tail)
+	}
+
+	// Test case 3: Read 0 lines
+	tail, err = loader.Tail(tmpfile.Name(), 0)
+	if err != nil {
+		t.Fatalf("Tail failed: %v", err)
+	}
+	if tail != "" {
+		t.Errorf("expected empty string, got '%s'", tail)
+	}
+
+	// Test case 4: Read from an empty file
+	emptyfile, err := os.CreateTemp("", "tail-test-empty-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(emptyfile.Name())
+	emptyfile.Close()
+
+	tail, err = loader.Tail(emptyfile.Name(), 5)
+	if err != nil {
+		t.Fatalf("Tail failed: %v", err)
+	}
+	if tail != "" {
+		t.Errorf("expected empty string, got '%s'", tail)
+	}
+
+	// Test case 5: Non-existent file
+	_, err = loader.Tail("non_existent_file.txt", 5)
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+}

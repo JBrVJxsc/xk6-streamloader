@@ -3,6 +3,7 @@ package streamloader
 
 import (
 	"bufio"
+	"container/ring"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -236,6 +237,46 @@ func (StreamLoader) Head(filePath string, n int) (string, error) {
 	}
 
 	return strings.Join(lines, "\n"), nil
+}
+
+// Tail reads the last N lines of a file without loading the entire file into memory.
+// It returns the lines as a single string, with each line separated by a newline character.
+// This is useful for previewing the end of large files.
+//
+// Example usage:
+//
+//	last10Lines, err := streamloader.Tail("large_file.txt", 10)
+func (StreamLoader) Tail(filePath string, n int) (string, error) {
+	if n <= 0 {
+		return "", nil
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	ringBuffer := ring.New(n)
+	for scanner.Scan() {
+		ringBuffer.Value = scanner.Text()
+		ringBuffer = ringBuffer.Next()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var resultLines []string
+	ringBuffer.Do(func(p interface{}) {
+		if p != nil {
+			resultLines = append(resultLines, p.(string))
+		}
+	})
+
+	return strings.Join(resultLines, "\n"), nil
 }
 
 // isWhitespace checks for JSON whitespace characters
