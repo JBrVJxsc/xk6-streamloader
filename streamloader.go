@@ -56,6 +56,7 @@ type FieldConfig struct {
 // ProcessCsvOptions represents options for ProcessCsvFile
 type ProcessCsvOptions struct {
 	SkipHeader bool              `json:"skipHeader" js:"skipHeader"`
+	LazyQuotes bool              `json:"lazyQuotes" js:"lazyQuotes"`
 	Filters    []FilterConfig    `json:"filters" js:"filters"`
 	Transforms []TransformConfig `json:"transforms" js:"transforms"`
 	GroupBy    *GroupByConfig    `json:"groupBy,omitempty" js:"groupBy"`
@@ -117,7 +118,7 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 
 	// Configure CSV reader for robust parsing
 	csvReader.TrimLeadingSpace = true
-	csvReader.LazyQuotes = true
+	csvReader.LazyQuotes = options.LazyQuotes // Use configurable setting
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
 	// Ensure consistent handling of line endings
@@ -305,12 +306,25 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 // - Processes one row at a time instead of loading entire file
 // - Supports files of any size without significant memory overhead
 //
+// The lazyQuotes parameter controls how strictly the CSV parser handles quotes:
+// - When true, quotes may appear in an unquoted field and a non-doubled quote may appear in a quoted field
+// - When false, strict RFC 4180 compliance is enforced
+//
 // Example usage:
 //
-//	records, err := streamloader.LoadCSV("data.csv")
+//	records, err := streamloader.LoadCSV("data.csv", true) // With lazy quotes
 //	// records[0] contains the first row as []string
 //	// records[1] contains the second row as []string, etc.
-func (StreamLoader) LoadCSV(filePath string) ([][]string, error) {
+//
+// For backward compatibility, you can call LoadCSV with just the filePath to use default settings (lazyQuotes=true):
+//
+//	records, err := streamloader.LoadCSV("data.csv")
+func (s StreamLoader) LoadCSV(filePath string, lazyQuotes ...bool) ([][]string, error) {
+	// Default to true for lazy quotes (backward compatibility)
+	isLazyQuotes := true
+	if len(lazyQuotes) > 0 {
+		isLazyQuotes = lazyQuotes[0]
+	}
 	// 1) Open file
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -326,9 +340,11 @@ func (StreamLoader) LoadCSV(filePath string) ([][]string, error) {
 
 	// Configure CSV reader for robust parsing
 	csvReader.TrimLeadingSpace = true
-	csvReader.LazyQuotes = true
+	csvReader.LazyQuotes = isLazyQuotes
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
+	// Ensure consistent handling of line endings
+	csvReader.ReuseRecord = true
 
 	// 4) Read all records incrementally
 	var records [][]string

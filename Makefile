@@ -38,7 +38,9 @@ build:
 # Setup test environment
 prepare-test-env: build
 	@echo "$(GREEN)Preparing test environment...$(NC)"
+	@mkdir -p $(BUILD_DIR)/testdata/
 	@cp testdata/*.csv $(BUILD_DIR)/
+	@cp testdata/*.csv $(BUILD_DIR)/testdata/
 	@cp testdata/*.json $(BUILD_DIR)/
 	@echo "$(GREEN)✓ Test environment prepared$(NC)"
 
@@ -137,6 +139,12 @@ test-k6: build generate-test-files prepare-test-env
 		$(K6_BINARY) run tests/csv/transform_projection_test.js; \
 	else \
 		echo "$(RED)Error: tests/csv/transform_projection_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/csv/lazy_quotes_option_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/lazy_quotes_option_test.js; \
+	else \
+		echo "$(RED)Error: tests/csv/lazy_quotes_option_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"

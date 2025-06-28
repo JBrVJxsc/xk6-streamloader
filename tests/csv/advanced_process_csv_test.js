@@ -53,9 +53,15 @@ export default function () {
     // Debug output to verify file processing is working
     console.log(`Testing file at path: ${filePath}`);
     
+    // Set lazyQuotes to true for all tests to handle the quote issue in line 16
+    const defaultOptions = {
+        lazyQuotes: true
+    };
+    
     group('Basic Functionality Tests', function () {
         // Test 1: Basic CSV loading with header skipping
         const basicOptions = {
+            ...defaultOptions,
             skipHeader: true,
             fields: []
         };
@@ -82,6 +88,7 @@ export default function () {
         
         // Test 2: Field selection
         const fieldOptions = {
+            ...defaultOptions,
             skipHeader: true,
             fields: [
                 { type: "column", column: 0 }, // id
@@ -114,6 +121,7 @@ export default function () {
     group('Filter Tests', function () {
         // Test 3: Empty string filter
         const emptyStringOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "emptyString", column: 1 }  // Filter out rows with empty name
@@ -145,6 +153,7 @@ export default function () {
         
         // Test 4: Regex match filter
         const regexOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "regexMatch", column: 4, pattern: "^(Audio|Mobile)$" }  // Only Audio or Mobile categories
@@ -181,6 +190,7 @@ export default function () {
         const min = 100.0;
         const max = 500.0;
         const valueRangeOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "valueRange", column: 2, min: min, max: max }  // Price between 100-500
@@ -224,6 +234,7 @@ export default function () {
         
         // Test 6: Combined filters
         const combinedOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "emptyString", column: 1 },  // Non-empty name
@@ -266,6 +277,7 @@ export default function () {
     group('Transform Tests', function () {
         // Test 7: ParseInt transform
         const parseIntOptions = {
+            ...defaultOptions,
             skipHeader: true,
             transforms: [
                 { type: "parseInt", column: 3 }  // Convert quantity to integer
@@ -305,6 +317,7 @@ export default function () {
         
         // Test 8: Fixed value transform
         const fixedValueOptions = {
+            ...defaultOptions,
             skipHeader: true,
             transforms: [
                 { type: "fixedValue", column: 1, value: "PRODUCT" }  // Replace all names
@@ -340,6 +353,7 @@ export default function () {
         // Test 9: Substring transform
         const length = 3;
         const substringOptions = {
+            ...defaultOptions,
             skipHeader: true,
             transforms: [
                 { type: "substring", column: 4, start: 0, length: length }  // First 3 chars of category
@@ -377,6 +391,7 @@ export default function () {
     group('GroupBy Tests', function () {
         // Test 10: Simple grouping
         const groupOptions = {
+            ...defaultOptions,
             skipHeader: true,
             groupBy: { column: 4 },  // Group by category
             fields: [
@@ -407,6 +422,7 @@ export default function () {
     group('Projection Tests', function () {
         // Test 11: Fixed value projection
         const projectionOptions = {
+            ...defaultOptions,
             skipHeader: true,
             fields: [
                 { type: "column", column: 0 },   // id
@@ -441,6 +457,7 @@ export default function () {
     group('Edge Cases Tests', function() {
         // Test 12: Empty fields
         const emptyFieldsOptions = {
+            ...defaultOptions,
             skipHeader: true,
             fields: [
                 { type: "column", Column: 0 },  // id
@@ -470,6 +487,7 @@ export default function () {
         
         // Test 13: Invalid column indices
         const invalidColOptions = {
+            ...defaultOptions,
             skipHeader: true,
             fields: [
                 { type: "column", column: 999 }  // Non-existent column
@@ -497,6 +515,7 @@ export default function () {
     group('Error Handling Tests', function() {
         // Test 14: Invalid regex pattern
         const invalidRegexOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "regexMatch", column: 1, pattern: "[invalid" }  // Malformed regex
@@ -521,6 +540,7 @@ export default function () {
     group('Complex Tests', function() {
         // Test 15: Combine multiple transforms
         const multiTransformOptions = {
+            ...defaultOptions,
             skipHeader: true,
             transforms: [
                 { type: "parseInt", column: 3 },  // Convert quantity to integer
@@ -562,6 +582,7 @@ export default function () {
         
         // Test 16: Complex filtering with transforms and grouping
         const complexOptions = {
+            ...defaultOptions,
             skipHeader: true,
             filters: [
                 { type: "regexMatch", column: 4, pattern: "Electronics|Mobile" }  // Only Electronics or Mobile
@@ -604,12 +625,14 @@ export default function () {
         let totalRows = 0;
         
         // Process the file multiple times with different options
-        const options1 = { skipHeader: true };
+        const options1 = { ...defaultOptions, skipHeader: true };
         const options2 = { 
+            ...defaultOptions,
             skipHeader: true,
             filters: [{ type: "regexMatch", column: 4, pattern: "Electronics" }]
         };
         const options3 = {
+            ...defaultOptions,
             skipHeader: true,
             transforms: [{ type: "parseInt", column: 3 }]
         };
@@ -651,6 +674,7 @@ export default function () {
         try {
             // Just use our existing file since we can't create temp files easily
             const inconsistentOptions = {
+                ...defaultOptions,
                 skipHeader: true,
                 fields: [
                     { type: "column", column: 0 }, // id
