@@ -142,6 +142,7 @@ func TestOptionsCombo(t *testing.T) {
 	options := CsvOptions{
 		LazyQuotes:       true,
 		TrimLeadingSpace: true,
+		TrimSpace:        false,
 		ReuseRecord:      true,
 	}
 	
@@ -153,4 +154,93 @@ func TestOptionsCombo(t *testing.T) {
 	if len(records) != 4 {
 		t.Errorf("Expected 4 records, got %d", len(records))
 	}
+}
+
+func TestTrimSpaceOption(t *testing.T) {
+	// Create a temporary CSV file with trailing spaces
+	tempDir := t.TempDir()
+	csvPath := filepath.Join(tempDir, "trim_space_test.csv")
+
+	// CSV with trailing spaces in fields - add extra quotes to preserve spaces
+	csvContent := `id,name,value
+1,"Product 1   ",100
+2,"Product 2  ","   200   "
+3,Product 3   ,300   `
+
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0644); err != nil {
+		t.Fatalf("Failed to create test CSV: %v", err)
+	}
+
+	loader := StreamLoader{}
+
+	// Test with TrimSpace=true
+	t.Run("With TrimSpace=true", func(t *testing.T) {
+		records, err := loader.LoadCSV(csvPath, CsvOptions{
+			TrimLeadingSpace: true,
+			TrimSpace:        true,
+			LazyQuotes:       true,
+			ReuseRecord:      true,
+		})
+		if err != nil {
+			t.Fatalf("LoadCSV failed: %v", err)
+		}
+
+		// Check that all spaces (leading and trailing) were trimmed
+		if records[1][1] != "Product 1" {
+			t.Errorf("Expected fully trimmed value 'Product 1', got '%s'", records[1][1])
+		}
+		if records[2][2] != "200" {
+			t.Errorf("Expected fully trimmed value '200', got '%s'", records[2][2])
+		}
+		if records[3][1] != "Product 3" {
+			t.Errorf("Expected fully trimmed value 'Product 3', got '%s'", records[3][1])
+		}
+		if records[3][2] != "300" {
+			t.Errorf("Expected fully trimmed value '300', got '%s'", records[3][2])
+		}
+	})
+
+	// Test with TrimSpace=false (default)
+	t.Run("With TrimSpace=false", func(t *testing.T) {
+		records, err := loader.LoadCSV(csvPath, CsvOptions{
+			TrimLeadingSpace: true, // This is still true, only trims leading spaces
+			TrimSpace:        false,
+			LazyQuotes:       true,
+			ReuseRecord:      true,
+		})
+		if err != nil {
+			t.Fatalf("LoadCSV failed: %v", err)
+		}
+
+		// Check that leading spaces were trimmed but trailing spaces preserved
+		// Note: TrimLeadingSpace is still true, so leading spaces should be trimmed
+		// but trailing spaces should be preserved
+		if records[1][1] != "Product 1   " {
+			t.Errorf("Expected trailing spaces preserved 'Product 1   ', got '%s'", records[1][1])
+		}
+		if records[3][1] != "Product 3   " {
+			t.Errorf("Expected trailing spaces preserved 'Product 3   ', got '%s'", records[3][1])
+		}
+		if records[3][2] != "300   " {
+			t.Errorf("Expected trailing spaces preserved '300   ', got '%s'", records[3][2])
+		}
+	})
+
+	// Test with both TrimSpace and TrimLeadingSpace disabled
+	t.Run("With TrimSpace=false and TrimLeadingSpace=false", func(t *testing.T) {
+		records, err := loader.LoadCSV(csvPath, CsvOptions{
+			TrimLeadingSpace: false,
+			TrimSpace:        false,
+			LazyQuotes:       true,
+			ReuseRecord:      true,
+		})
+		if err != nil {
+			t.Fatalf("LoadCSV failed: %v", err)
+		}
+
+		// Check that both leading and trailing spaces were preserved
+		if records[2][2] != "   200   " {
+			t.Errorf("Expected all spaces preserved '   200   ', got '%s'", records[2][2])
+		}
+	})
 }

@@ -57,6 +57,7 @@ type FieldConfig struct {
 type CsvOptions struct {
 	LazyQuotes       bool `json:"lazyQuotes" js:"lazyQuotes"`
 	TrimLeadingSpace bool `json:"trimLeadingSpace" js:"trimLeadingSpace"`
+	TrimSpace        bool `json:"trimSpace" js:"trimSpace"`
 	ReuseRecord      bool `json:"reuseRecord" js:"reuseRecord"`
 }
 
@@ -65,6 +66,7 @@ type ProcessCsvOptions struct {
 	SkipHeader       bool              `json:"skipHeader" js:"skipHeader"`
 	LazyQuotes       bool              `json:"lazyQuotes" js:"lazyQuotes"`
 	TrimLeadingSpace bool              `json:"trimLeadingSpace" js:"trimLeadingSpace"`
+	TrimSpace        bool              `json:"trimSpace" js:"trimSpace"`
 	ReuseRecord      bool              `json:"reuseRecord" js:"reuseRecord"`
 	Filters          []FilterConfig    `json:"filters" js:"filters"`
 	Transforms       []TransformConfig `json:"transforms" js:"transforms"`
@@ -79,6 +81,10 @@ type ProcessCsvOptions struct {
 //
 // Options:
 // - skipHeader: Whether to skip the first row as header (default: true)
+// - lazyQuotes: Allow unescaped quotes in quoted fields (default: true)
+// - trimLeadingSpace: Trim leading whitespace from fields (default: true)
+// - trimSpace: Trim all whitespace from fields (leading and trailing) (default: false)
+// - reuseRecord: Reuse record memory for better performance (default: true)
 // - filters: Array of filter configs to drop unwanted rows:
 //   - { type: "emptyString", column: N }
 //   - { type: "regexMatch", column: N, pattern: "regex" }
@@ -180,9 +186,16 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 
 		// Make a copy and normalize fields
 		row := make([]string, len(record))
-		for i, field := range record {
-			// Normalize field by trimming whitespace and ensuring consistent representation
-			row[i] = strings.TrimSpace(field)
+		
+		// Apply trimming according to options
+		if options.TrimSpace {
+			for i, field := range record {
+				// Trim all whitespace
+				row[i] = strings.TrimSpace(field)
+			}
+		} else {
+			// Just copy if no trimming required
+			copy(row, record)
 		}
 
 		// Apply filters
@@ -322,9 +335,19 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 // - Processes one row at a time instead of loading entire file
 // - Supports files of any size without significant memory overhead
 //
-// The lazyQuotes parameter controls how strictly the CSV parser handles quotes:
-// - When true, quotes may appear in an unquoted field and a non-doubled quote may appear in a quoted field
-// - When false, strict RFC 4180 compliance is enforced
+// Available options:
+// - lazyQuotes: Controls how strictly the CSV parser handles quotes (default: true)
+//   - When true, quotes may appear in an unquoted field and a non-doubled quote may appear in a quoted field
+//   - When false, strict RFC 4180 compliance is enforced
+// - trimLeadingSpace: Removes leading whitespace from fields (default: true)
+//   - Only removes whitespace at the beginning of fields when a field is read
+//   - This is a built-in feature of the CSV reader
+// - trimSpace: Removes all whitespace from fields (leading and trailing) (default: false)
+//   - This is a more aggressive trimming that removes both leading and trailing whitespace
+//   - When true, this overrides the CSV reader's built-in TrimLeadingSpace behavior
+// - reuseRecord: Reuses record memory for better performance (default: true)
+//   - Reduces memory allocations by reusing the same slice for each record
+//   - Only set to false if you need to retain references to individual records
 //
 // Example usage:
 //
@@ -333,6 +356,7 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 //	options := CsvOptions{
 //	    LazyQuotes: true,
 //	    TrimLeadingSpace: true,
+//	    TrimSpace: false,
 //	    ReuseRecord: true,
 //	}
 //	records, err := streamloader.LoadCSV("data.csv", options)
@@ -341,7 +365,7 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 //
 //	records, err := streamloader.LoadCSV("data.csv", true) // With lazy quotes
 //
-// With default settings (all options true):
+// With default settings (all options true except TrimSpace):
 //
 //	records, err := streamloader.LoadCSV("data.csv")
 //
@@ -351,6 +375,7 @@ func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]stri
 	// Set defaults
 	isLazyQuotes := true
 	isTrimLeadingSpace := true
+	isTrimSpace := false
 	isReuseRecord := true
 
 	// Process options if provided
@@ -359,6 +384,7 @@ func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]stri
 		if csvOptions, ok := options[0].(CsvOptions); ok {
 			isLazyQuotes = csvOptions.LazyQuotes
 			isTrimLeadingSpace = csvOptions.TrimLeadingSpace
+			isTrimSpace = csvOptions.TrimSpace
 			isReuseRecord = csvOptions.ReuseRecord
 		} else if lazyQuotes, ok := options[0].(bool); ok {
 			// Backward compatibility: interpret bool as LazyQuotes
@@ -400,7 +426,16 @@ func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]stri
 
 		// Make a copy of the record to avoid memory sharing issues
 		recordCopy := make([]string, len(record))
-		copy(recordCopy, record)
+		
+		// Apply TrimSpace if enabled
+		if isTrimSpace {
+			for i, field := range record {
+				recordCopy[i] = strings.TrimSpace(field)
+			}
+		} else {
+			copy(recordCopy, record)
+		}
+		
 		records = append(records, recordCopy)
 	}
 
