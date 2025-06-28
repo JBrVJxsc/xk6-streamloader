@@ -2,9 +2,9 @@ import { check, group } from 'k6';
 import { processCsvFile } from 'k6/x/streamloader';
 
 export default function () {
-    // Use relative paths - files should be in current working directory
-    const ordersFilePath = 'orders.csv';
-    const productsFilePath = 'products.csv';
+    // Use absolute paths to access files in testdata directory
+    const ordersFilePath = './testdata/orders.csv';
+    const productsFilePath = './testdata/products.csv';
 
     group('Basic Orders and Products CSV tests', function() {
         // Test 1: Simple loading of orders with skipHeader

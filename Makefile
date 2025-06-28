@@ -11,7 +11,7 @@ YELLOW = \033[0;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: all build clean test test-go test-k6 test-memory help generate-test-files
+.PHONY: all build clean test test-go test-k6 test-memory help generate-test-files prepare-test-env
 
 # Default target
 all: build test
@@ -35,6 +35,13 @@ build:
 	cd $(BUILD_DIR) && xk6 build $(K6_VERSION) --with $(MODULE_NAME)=../
 	@echo "$(GREEN)✓ Build complete: $(K6_BINARY)$(NC)"
 
+# Setup test environment
+prepare-test-env: build
+	@echo "$(GREEN)Preparing test environment...$(NC)"
+	@cp testdata/*.csv $(BUILD_DIR)/
+	@cp testdata/*.json $(BUILD_DIR)/
+	@echo "$(GREEN)✓ Test environment prepared$(NC)"
+
 # Run all tests
 test: test-go test-k6 test-memory
 	@echo "$(GREEN)✓ All tests completed successfully!$(NC)"
@@ -46,96 +53,102 @@ test-go: generate-test-files
 	@echo "$(GREEN)✓ Go tests completed$(NC)"
 
 # Run k6 JavaScript tests
-test-k6: build generate-test-files
+test-k6: build generate-test-files prepare-test-env
 	@echo "$(GREEN)Running k6 JavaScript tests...$(NC)"
-	@if [ -f "streamloader_k6_test.js" ]; then \
-		$(K6_BINARY) run streamloader_k6_test.js; \
+	@if [ -f "tests/json/streamloader_k6_test.js" ]; then \
+		$(K6_BINARY) run tests/json/streamloader_k6_test.js; \
 	else \
-		echo "$(RED)Error: streamloader_k6_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/json/streamloader_k6_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "head_test.js" ]; then \
-		$(K6_BINARY) run head_test.js; \
+	@if [ -f "tests/json/head_test.js" ]; then \
+		$(K6_BINARY) run tests/json/head_test.js; \
 	else \
-		echo "$(RED)Error: head_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/json/head_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "tail_test.js" ]; then \
-		$(K6_BINARY) run tail_test.js; \
+	@if [ -f "tests/json/tail_test.js" ]; then \
+		$(K6_BINARY) run tests/json/tail_test.js; \
 	else \
-		echo "$(RED)Error: tail_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/json/tail_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "process_csv_test.js" ]; then \
-		$(K6_BINARY) run process_csv_test.js; \
+	@if [ -f "tests/csv/process_csv_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/process_csv_test.js; \
 	else \
-		echo "$(RED)Error: process_csv_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/csv/process_csv_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "advanced_process_csv_test.js" ]; then \
-		$(K6_BINARY) run advanced_process_csv_test.js; \
+	@if [ -f "tests/csv/advanced_process_csv_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/advanced_process_csv_test.js; \
 	else \
-		echo "$(RED)Error: advanced_process_csv_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/csv/advanced_process_csv_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "edge_case_csv_test.js" ]; then \
-		$(K6_BINARY) run edge_case_csv_test.js; \
+	@if [ -f "tests/csv/edge_case_csv_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/edge_case_csv_test.js; \
 	else \
-		echo "$(RED)Error: edge_case_csv_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/csv/edge_case_csv_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "test_parameters.js" ]; then \
-		$(K6_BINARY) run test_parameters.js; \
+	@if [ -f "tests/params/test_parameters.js" ]; then \
+		$(K6_BINARY) run tests/params/test_parameters.js; \
 	else \
-		echo "$(RED)Error: test_parameters.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/test_parameters.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "parameter_struct_test.js" ]; then \
-		$(K6_BINARY) run parameter_struct_test.js; \
+	@if [ -f "tests/params/parameter_struct_test.js" ]; then \
+		$(K6_BINARY) run tests/params/parameter_struct_test.js; \
 	else \
-		echo "$(RED)Error: parameter_struct_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/parameter_struct_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "comprehensive_param_test.js" ]; then \
-		$(K6_BINARY) run comprehensive_param_test.js; \
+	@if [ -f "tests/params/comprehensive_param_test.js" ]; then \
+		$(K6_BINARY) run tests/params/comprehensive_param_test.js; \
 	else \
-		echo "$(RED)Error: comprehensive_param_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/comprehensive_param_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "null_value_param_test.js" ]; then \
-		$(K6_BINARY) run null_value_param_test.js; \
+	@if [ -f "tests/params/null_value_param_test.js" ]; then \
+		$(K6_BINARY) run tests/params/null_value_param_test.js; \
 	else \
-		echo "$(RED)Error: null_value_param_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/null_value_param_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "struct_tags_test.js" ]; then \
-		$(K6_BINARY) run struct_tags_test.js; \
+	@if [ -f "tests/params/struct_tags_test.js" ]; then \
+		$(K6_BINARY) run tests/params/struct_tags_test.js; \
 	else \
-		echo "$(RED)Error: struct_tags_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/struct_tags_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "orders_products_test.js" ]; then \
-		$(K6_BINARY) run orders_products_test.js; \
+	@if [ -f "tests/params/streamloader_fields_test.js" ]; then \
+		$(K6_BINARY) run tests/params/streamloader_fields_test.js; \
 	else \
-		echo "$(RED)Error: orders_products_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/params/streamloader_fields_test.js not found$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f "transform_projection_test.js" ]; then \
-		$(K6_BINARY) run transform_projection_test.js; \
+	@if [ -f "tests/csv/orders_products_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/orders_products_test.js; \
 	else \
-		echo "$(RED)Error: transform_projection_test.js not found$(NC)"; \
+		echo "$(RED)Error: tests/csv/orders_products_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/csv/transform_projection_test.js" ]; then \
+		$(K6_BINARY) run tests/csv/transform_projection_test.js; \
+	else \
+		echo "$(RED)Error: tests/csv/transform_projection_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
 	@echo "$(YELLOW)Cleaning up temporary test files except our permanent test files...$(NC)"
 	@# We're keeping advanced_process.csv and edge_case_test.csv as permanent test files
-	@rm -f test_process.csv test_parameters.csv parameter_struct_test.csv comprehensive_param_test.csv null_value_param_test.csv struct_tags_test.csv
+	@rm -f $(BUILD_DIR)/test_process.csv $(BUILD_DIR)/test_parameters.csv $(BUILD_DIR)/parameter_struct_test.csv $(BUILD_DIR)/comprehensive_param_test.csv $(BUILD_DIR)/null_value_param_test.csv $(BUILD_DIR)/struct_tags_test.csv
 
 # Run k6 memory test
 test-memory: build generate-test-files
 	@echo "$(GREEN)Running k6 memory test for built-in open()...$(NC)"
 	@# Run k6 in the background, get its PID, and poll its memory usage
-	@$(K6_BINARY) run memory_test_open.js > /dev/null 2>&1 & \
+	@$(K6_BINARY) run tests/memory/memory_test_open.js > /dev/null 2>&1 & \
 	K6_PID=$$!; \
 	MAX_RSS=0; \
 	while ps -p $$K6_PID > /dev/null; do \
@@ -150,7 +163,7 @@ test-memory: build generate-test-files
 
 	@echo "$(GREEN)Running k6 memory test for streamloader.loadFile()...$(NC)"
 	@# Run k6 in the background, get its PID, and poll its memory usage
-	@$(K6_BINARY) run memory_test_streamloader.js > /dev/null 2>&1 & \
+	@$(K6_BINARY) run tests/memory/memory_test_streamloader.js > /dev/null 2>&1 & \
 	K6_PID=$$!; \
 	MAX_RSS=0; \
 	while ps -p $$K6_PID > /dev/null; do \
@@ -166,9 +179,9 @@ test-memory: build generate-test-files
 # Generate large test files
 generate-test-files:
 	@echo "$(GREEN)Generating large test files...$(NC)"
-	@python3 generate_large_json.py
-	@python3 generate_large_csv.py
-	@python3 generate_large_file.py
+	@python3 scripts/generate_large_json.py
+	@python3 scripts/generate_large_csv.py
+	@python3 scripts/generate_large_file.py
 	@echo "$(GREEN)✓ Large test files generated$(NC)"
 
 # Clean build artifacts
@@ -176,4 +189,4 @@ clean:
 	@echo "$(GREEN)Cleaning build artifacts...$(NC)"
 	rm -rf $(BUILD_DIR)
 	rm -f large.json large.csv large_file.txt
-	@echo "$(GREEN)✓ Clean completed$(NC)" 
+	@echo "$(GREEN)✓ Clean completed$(NC)"

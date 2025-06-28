@@ -2,8 +2,9 @@ import { check, group } from 'k6';
 import { processCsvFile } from 'k6/x/streamloader';
 
 export default function () {
-    const ordersFilePath = 'orders.csv';
-    const productsFilePath = 'products.csv';
+    // Use absolute paths to access files in testdata directory
+    const ordersFilePath = './testdata/orders.csv';
+    const productsFilePath = './testdata/products.csv';
 
     group('CSV Transform Tests', function() {
         // Test 1: Convert quantity to integers
