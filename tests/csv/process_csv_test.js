@@ -1,6 +1,13 @@
 import { check, group } from 'k6';
 import { processCsvFile } from 'k6/x/streamloader';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 // Helper for deep equality check
 function deepEqual(a, b) {
     if (a === b) return true;
@@ -33,4 +40,4 @@ export default function () {
             'Module loaded successfully': () => true,
         });
     });
-} 
+}

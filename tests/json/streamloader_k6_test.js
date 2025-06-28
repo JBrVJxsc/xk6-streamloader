@@ -1,6 +1,13 @@
 import streamloader from 'k6/x/streamloader';
 import { check, fail } from 'k6';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     // JSON Tests (existing)
     

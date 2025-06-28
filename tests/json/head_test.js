@@ -1,6 +1,13 @@
 import streamloader from 'k6/x/streamloader';
 import { check, fail } from 'k6';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     // Head Tests
     console.log("--- Running Head Tests ---");
@@ -44,4 +51,4 @@ export default function () {
     } catch (e) {
         check(e, { 'head error for missing file': (err) => String(err).includes('no_such_file') || String(err).includes('no such file') });
     }
-} 
+}

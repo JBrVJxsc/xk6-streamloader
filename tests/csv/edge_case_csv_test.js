@@ -2,6 +2,13 @@ import { check, group } from 'k6';
 import { processCsvFile } from 'k6/x/streamloader';
 import { sleep } from 'k6';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     // Test file with edge cases
     const filePath = './testdata/edge_case_test.csv';

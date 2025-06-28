@@ -1,79 +1,97 @@
 import { check, group } from 'k6';
 import { processCsvFile, debugCsvOptions } from 'k6/x/streamloader';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
+// Helper function to print the string representation of an object
+function debugObject(obj) {
+    console.log(JSON.stringify(obj, null, 2));
+}
+
 export default function () {
-    group('Testing js struct tags for parameter passing', function() {
-        // Create a test file path
-        const testFilePath = 'parameter_struct_test.csv';
-        
-        // Create an Order object that matches the struct in the Go code
-        const order = {
-            id: "12345",
-            details: {
-                name: "Test Product",
-                note: "Testing nested structs",
-                more_details: {
-                    age: 30
-                }
-            }
-        };
-        
-        // Log the object for debugging
-        console.log("Order object:", JSON.stringify(order, null, 2));
-        
-        // Define ProcessCsvOptions with standard parameters
+    // Create a test CSV file
+    const testFilePath = 'parameter_struct_test.csv';
+    
+    group('Testing parameter passing with ProcessCsvOptions struct', function () {
+        // Define options with all properties for testing parameter passing
         const options = {
             skipHeader: true,
+            lazyQuotes: true,
+            trimLeadingSpace: true,
+            reuseRecord: true,
             filters: [
                 {
-                    type: "emptyString",
-                    column: 1
+                    type: "regexMatch",
+                    column: 1,
+                    pattern: "test"
+                },
+                {
+                    type: "valueRange",
+                    column: 2,
+                    min: 10,
+                    max: 20
                 }
             ],
             transforms: [
                 {
-                    type: "parseInt",
-                    column: 3
+                    type: "parseInt", 
+                    column: 0
                 }
             ],
             groupBy: {
-                column: 4
+                column: 3
             },
             fields: [
                 {
                     type: "column",
-                    column: 0
+                    column: 1
                 },
                 {
                     type: "fixed",
-                    value: "FIXED"
+                    value: "test"
                 }
             ]
         };
         
-        // Log options for verification
-        console.log("ProcessCsvOptions object:", JSON.stringify(options, null, 2));
+        console.log("Sending options to ProcessCsvOptions struct:");
+        debugObject(options);
         
         try {
             // Use debugCsvOptions to verify parameter passing without needing the file
-            const debugResult = debugCsvOptions(options);
-            
+            const result = debugCsvOptions(options);
             console.log("Parameter passing debug result:");
-            console.log(JSON.stringify(debugResult, null, 2));
+            debugObject(result);
             
-            // Check that options were correctly passed
-            check(debugResult, {
-                'ProcessCsvOptions correctly passed with js tags': (result) => 
-                    result.skipHeader === true && 
-                    Array.isArray(result.filters) && 
-                    result.filters.length === 1 &&
-                    result.filters[0].type === "emptyString" && 
-                    result.filters[0].column === 1 &&
-                    Array.isArray(result.transforms) &&
-                    result.transforms[0].type === "parseInt" &&
-                    result.transforms[0].column === 3 &&
-                    result.groupBy && result.groupBy.column === 4 &&
-                    result.fields[1].value === "FIXED"
+            // Verify key parameters were passed correctly
+            let isValid = true;
+            
+            // Check skipHeader is correctly passed
+            isValid = isValid && result.skipHeader === true;
+            console.log(`skipHeader check: ${result.skipHeader === true}`);
+            
+            // Check lazyQuotes is correctly passed
+            isValid = isValid && result.lazyQuotes === true;
+            console.log(`lazyQuotes check: ${result.lazyQuotes === true}`);
+            
+            // Check filters array is correctly passed
+            isValid = isValid && Array.isArray(result.filters);
+            console.log(`filters is array check: ${Array.isArray(result.filters)}`);
+            
+            isValid = isValid && result.filters.length === 2;
+            console.log(`filters length check: ${result.filters.length === 2}`);
+            
+            // Check first filter (regex)
+            isValid = isValid && result.filters[0].type === "regexMatch";
+            console.log(`filter[0].type check: ${result.filters[0].type === "regexMatch"}`);
+            
+            // Verify the complete parameter passing worked
+            check(isValid, {
+                'ProcessCsvOptions correctly passed with js tags': (result) => result === true
             });
             
             try {

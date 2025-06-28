@@ -2,6 +2,13 @@ import { check, group } from 'k6';
 import { processCsvFile, debugCsvOptions, debugOptions } from 'k6/x/streamloader';
 import { sleep } from 'k6';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     group('CSV Options Tests', function () {
         // Test that all CSV options exist in ProcessCsvOptions

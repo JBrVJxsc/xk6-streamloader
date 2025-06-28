@@ -1,6 +1,13 @@
 import { check, group } from 'k6';
 import { processCsvFile } from 'k6/x/streamloader';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     // Use absolute paths to access files in testdata directory
     const ordersFilePath = './testdata/orders.csv';

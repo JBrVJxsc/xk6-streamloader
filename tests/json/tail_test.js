@@ -1,6 +1,13 @@
 import streamloader from 'k6/x/streamloader';
 import { check, fail } from 'k6';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 export default function () {
     // Tail Tests
     console.log("--- Running Tail Tests ---");
@@ -43,4 +50,4 @@ export default function () {
     } catch (e) {
         check(e, { 'tail error for missing file': (err) => String(err).includes('no_such_file') || String(err).includes('no such file') });
     }
-} 
+}

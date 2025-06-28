@@ -1,6 +1,13 @@
 import { check, group } from 'k6';
 import { debugCsvOptions } from 'k6/x/streamloader';
 
+export const options = {
+    thresholds: {
+        // Require 100% of checks to pass
+        'checks': ['rate==1.0'],
+    },
+};
+
 // Helper function to print the string representation of an object
 function printObject(obj) {
     console.log(JSON.stringify(obj, null, 2));
