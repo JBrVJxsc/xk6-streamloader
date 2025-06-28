@@ -1,0 +1,21 @@
+id,name,price,quantity,category,sku,description,in_stock
+1,Premium Laptop,1299.99,5,Electronics,ELEC-001,High-end laptop with latest processor and graphics,true
+2,Wireless Headphones,149.99,12,Electronics,ELEC-002,Noise cancelling wireless headphones with long battery life,true
+3,Smart Watch,299.99,8,Electronics,ELEC-003,Fitness tracker and notification display with heart rate monitor,true
+4,Coffee Maker,79.99,15,Home,HOME-001,Programmable coffee maker with timer and strength settings,true
+5,Blender,59.99,10,Home,HOME-002,Variable speed blender for smoothies and food prep,true
+6,Desk Chair,199.99,3,Furniture,FURN-001,Ergonomic office chair with lumbar support,true
+7,Bookshelf,149.99,2,Furniture,FURN-002,5-shelf bookcase with adjustable shelves,true
+8,Yoga Mat,29.99,20,Fitness,FIT-001,Non-slip exercise mat for yoga and floor exercises,true
+9,Dumbbells Set,99.99,7,Fitness,FIT-002,Adjustable weight dumbbells for home workouts,true
+10,Water Bottle,19.99,30,Fitness,FIT-003,Insulated stainless steel water bottle,true
+11,Winter Jacket,199.99,6,Clothing,CLTH-001,Waterproof insulated jacket for cold weather,true
+12,Running Shoes,89.99,9,Clothing,CLTH-002,Lightweight running shoes with cushioned soles,true
+13,Tablet,399.99,4,Electronics,ELEC-004,10-inch HD display tablet with long battery life,true
+14,External Hard Drive,79.99,11,Electronics,ELEC-005,1TB portable external hard drive,true
+15,Router,129.99,5,Electronics,ELEC-006,Dual-band Wi-Fi router with multiple antennas,false
+16,Toaster Oven,69.99,7,Home,HOME-003,Compact toaster oven with multiple cooking functions,true
+17,Slow Cooker,49.99,9,Home,HOME-004,Programmable slow cooker with removable stoneware,true
+18,Dining Table,349.99,1,Furniture,FURN-003,Round dining table with solid wood top,false
+19,Sofa,799.99,2,Furniture,FURN-004,Three-seat sofa with stain-resistant fabric,true
+20,Resistance Bands,24.99,15,Fitness,FIT-004,Set of 5 exercise bands with different resistance levels,true

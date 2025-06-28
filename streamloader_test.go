@@ -2068,8 +2068,11 @@ line",400
 			t.Fatalf("ProcessCsvFile should handle invalid column index gracefully: %v", err)
 		}
 
-		if len(result) != 1 {
-			t.Errorf("Expected 1 row despite invalid column index, got %d", len(result))
+		// For column beyond bounds, all rows should be dropped since it's treated
+		// as if the non-existent column is empty (which matches emptyString filter)
+		// So we expect 0 rows, not 1
+		if len(result) != 0 {
+			t.Errorf("Expected 0 rows when filtering on invalid column index, got %d", len(result))
 		}
 
 		// Test invalid column in transforms

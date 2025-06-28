@@ -53,14 +53,23 @@ type FieldConfig struct {
 	Value  interface{} `json:"value,omitempty" js:"value"`
 }
 
+// CsvOptions represents options for CSV parsing in LoadCSV
+type CsvOptions struct {
+	LazyQuotes       bool `json:"lazyQuotes" js:"lazyQuotes"`
+	TrimLeadingSpace bool `json:"trimLeadingSpace" js:"trimLeadingSpace"`
+	ReuseRecord      bool `json:"reuseRecord" js:"reuseRecord"`
+}
+
 // ProcessCsvOptions represents options for ProcessCsvFile
 type ProcessCsvOptions struct {
-	SkipHeader bool              `json:"skipHeader" js:"skipHeader"`
-	LazyQuotes bool              `json:"lazyQuotes" js:"lazyQuotes"`
-	Filters    []FilterConfig    `json:"filters" js:"filters"`
-	Transforms []TransformConfig `json:"transforms" js:"transforms"`
-	GroupBy    *GroupByConfig    `json:"groupBy,omitempty" js:"groupBy"`
-	Fields     []FieldConfig     `json:"fields" js:"fields"`
+	SkipHeader       bool              `json:"skipHeader" js:"skipHeader"`
+	LazyQuotes       bool              `json:"lazyQuotes" js:"lazyQuotes"`
+	TrimLeadingSpace bool              `json:"trimLeadingSpace" js:"trimLeadingSpace"`
+	ReuseRecord      bool              `json:"reuseRecord" js:"reuseRecord"`
+	Filters          []FilterConfig    `json:"filters" js:"filters"`
+	Transforms       []TransformConfig `json:"transforms" js:"transforms"`
+	GroupBy          *GroupByConfig    `json:"groupBy,omitempty" js:"groupBy"`
+	Fields           []FieldConfig     `json:"fields" js:"fields"`
 }
 
 // ProcessCsvFile opens a CSV file and processes it row by row using streaming to minimize memory usage.
@@ -117,12 +126,18 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 	csvReader := csv.NewReader(reader)
 
 	// Configure CSV reader for robust parsing
-	csvReader.TrimLeadingSpace = true
+	csvReader.TrimLeadingSpace = true // Default to true
+	if !options.TrimLeadingSpace {    // Only override if explicitly set to false
+		csvReader.TrimLeadingSpace = false
+	}
 	csvReader.LazyQuotes = options.LazyQuotes // Use configurable setting
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
-	// Ensure consistent handling of line endings
-	csvReader.ReuseRecord = true
+	// Apply ReuseRecord option with default true for performance
+	csvReader.ReuseRecord = true // Default to true
+	if !options.ReuseRecord {    // Only override if explicitly set to false
+		csvReader.ReuseRecord = false
+	}
 
 	// 4) Initialize processing state
 	var rowIndex int
@@ -174,7 +189,8 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 		shouldDrop := false
 		for _, filter := range options.Filters {
 			if filter.Column >= len(row) {
-				continue // Skip filter if column doesn't exist
+				shouldDrop = true
+				break // Drop the row if column doesn't exist
 			}
 
 			cell := row[filter.Column]
@@ -312,18 +328,42 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 //
 // Example usage:
 //
-//	records, err := streamloader.LoadCSV("data.csv", true) // With lazy quotes
-//	// records[0] contains the first row as []string
-//	// records[1] contains the second row as []string, etc.
+// With detailed options:
 //
-// For backward compatibility, you can call LoadCSV with just the filePath to use default settings (lazyQuotes=true):
+//	options := CsvOptions{
+//	    LazyQuotes: true,
+//	    TrimLeadingSpace: true,
+//	    ReuseRecord: true,
+//	}
+//	records, err := streamloader.LoadCSV("data.csv", options)
+//
+// With simple boolean for backward compatibility (lazy quotes):
+//
+//	records, err := streamloader.LoadCSV("data.csv", true) // With lazy quotes
+//
+// With default settings (all options true):
 //
 //	records, err := streamloader.LoadCSV("data.csv")
-func (s StreamLoader) LoadCSV(filePath string, lazyQuotes ...bool) ([][]string, error) {
-	// Default to true for lazy quotes (backward compatibility)
+//
+//	// records[0] contains the first row as []string
+//	// records[1] contains the second row as []string, etc.
+func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]string, error) {
+	// Set defaults
 	isLazyQuotes := true
-	if len(lazyQuotes) > 0 {
-		isLazyQuotes = lazyQuotes[0]
+	isTrimLeadingSpace := true
+	isReuseRecord := true
+
+	// Process options if provided
+	if len(options) > 0 {
+		// First try to process as CsvOptions struct
+		if csvOptions, ok := options[0].(CsvOptions); ok {
+			isLazyQuotes = csvOptions.LazyQuotes
+			isTrimLeadingSpace = csvOptions.TrimLeadingSpace
+			isReuseRecord = csvOptions.ReuseRecord
+		} else if lazyQuotes, ok := options[0].(bool); ok {
+			// Backward compatibility: interpret bool as LazyQuotes
+			isLazyQuotes = lazyQuotes
+		}
 	}
 	// 1) Open file
 	file, err := os.Open(filePath)
@@ -339,12 +379,12 @@ func (s StreamLoader) LoadCSV(filePath string, lazyQuotes ...bool) ([][]string, 
 	csvReader := csv.NewReader(reader)
 
 	// Configure CSV reader for robust parsing
-	csvReader.TrimLeadingSpace = true
+	csvReader.TrimLeadingSpace = isTrimLeadingSpace
 	csvReader.LazyQuotes = isLazyQuotes
 	// Allow variable number of fields per record
 	csvReader.FieldsPerRecord = -1
-	// Ensure consistent handling of line endings
-	csvReader.ReuseRecord = true
+	// Apply ReuseRecord option for memory efficiency
+	csvReader.ReuseRecord = isReuseRecord
 
 	// 4) Read all records incrementally
 	var records [][]string

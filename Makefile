@@ -58,19 +58,19 @@ test-go: generate-test-files
 test-k6: build generate-test-files prepare-test-env
 	@echo "$(GREEN)Running k6 JavaScript tests...$(NC)"
 	@if [ -f "tests/json/streamloader_k6_test.js" ]; then \
-		$(K6_BINARY) run tests/json/streamloader_k6_test.js; \
+		$(K6_BINARY) run --quiet tests/json/streamloader_k6_test.js || exit 1; \
 	else \
 		echo "$(RED)Error: tests/json/streamloader_k6_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@if [ -f "tests/json/head_test.js" ]; then \
-		$(K6_BINARY) run tests/json/head_test.js; \
+		$(K6_BINARY) run --quiet tests/json/head_test.js || exit 1; \
 	else \
 		echo "$(RED)Error: tests/json/head_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@if [ -f "tests/json/tail_test.js" ]; then \
-		$(K6_BINARY) run tests/json/tail_test.js; \
+		$(K6_BINARY) run --quiet tests/json/tail_test.js || exit 1; \
 	else \
 		echo "$(RED)Error: tests/json/tail_test.js not found$(NC)"; \
 		exit 1; \
@@ -145,6 +145,12 @@ test-k6: build generate-test-files prepare-test-env
 		$(K6_BINARY) run tests/csv/lazy_quotes_option_test.js; \
 	else \
 		echo "$(RED)Error: tests/csv/lazy_quotes_option_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/csv/csv_options_test.js" ]; then \
+		$(K6_BINARY) run --quiet tests/csv/csv_options_test.js || exit 1; \
+	else \
+		echo "$(RED)Error: tests/csv/csv_options_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
