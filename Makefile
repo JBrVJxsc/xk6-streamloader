@@ -114,6 +114,18 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: struct_tags_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "orders_products_test.js" ]; then \
+		$(K6_BINARY) run orders_products_test.js; \
+	else \
+		echo "$(RED)Error: orders_products_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "transform_projection_test.js" ]; then \
+		$(K6_BINARY) run transform_projection_test.js; \
+	else \
+		echo "$(RED)Error: transform_projection_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
 	@echo "$(YELLOW)Cleaning up temporary test files except our permanent test files...$(NC)"
 	@# We're keeping advanced_process.csv and edge_case_test.csv as permanent test files
