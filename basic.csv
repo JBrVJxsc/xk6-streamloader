@@ -1,0 +1,5 @@
+name,age,city,active
+John Doe,30,New York,true
+Jane Smith,25,Boston,true
+Bob Johnson,42,Chicago,true
+Alice Brown,28,Houston,false

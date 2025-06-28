@@ -4,7 +4,7 @@ import { sleep } from 'k6';
 
 export default function () {
     // Test file with edge cases
-    const filePath = 'edge_case_test.csv';
+    const filePath = './testdata/edge_case_test.csv';
     
     console.log(`Testing edge cases in file: ${filePath}`);
     

@@ -1,0 +1,23 @@
+{
+  "recordingId": "18aebc27-ef24-42a0-aee4-5e01f8ac6049",
+  "domain": "EATS_CUSTOMER",
+  "ttl": 604800,
+  "matchedPercentage": 86.39,
+  "filterStats": [
+    {
+      "domain": "EATS",
+      "method": "GET",
+      "uriRegex": "/endpoint/store.get_gateway",
+      "sampleCount": 562,
+      "percentage": 3.61
+    }
+  ],
+  "sampleCount": 15596,
+  "recordCount": 13474,
+  "recordingDuration": 3600,
+  "recordingDate": "2024-01-21T12:00:00Z",
+  "ownerId": "user_123456",
+  "isPublic": false,
+  "tags": ["eats", "customer", "production"],
+  "notes": "Test recording for EATS customer domain"
+}

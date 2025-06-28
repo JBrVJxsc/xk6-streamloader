@@ -48,7 +48,7 @@ function createTempTestFile(content) {
 
 export default function () {
     // Use absolute file path to ensure we're finding the file
-    const filePath = 'advanced_process.csv';  // Just the filename - k6 runs from project root
+    const filePath = './testdata/advanced_process.csv';
     
     // Debug output to verify file processing is working
     console.log(`Testing file at path: ${filePath}`);

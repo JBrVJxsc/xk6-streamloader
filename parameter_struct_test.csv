@@ -1,0 +1,4 @@
+name,value,type
+param1,value1,string
+param2,42,number
+param3,true,boolean
