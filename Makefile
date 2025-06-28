@@ -84,10 +84,22 @@ test-k6: build generate-test-files
 		echo "$(RED)Error: edge_case_csv_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "test_parameters.js" ]; then \
+		$(K6_BINARY) run test_parameters.js; \
+	else \
+		echo "$(RED)Error: test_parameters.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "parameter_struct_test.js" ]; then \
+		$(K6_BINARY) run parameter_struct_test.js; \
+	else \
+		echo "$(RED)Error: parameter_struct_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(GREEN)✓ k6 tests completed$(NC)"
 	@echo "$(YELLOW)Cleaning up temporary test files except our permanent test files...$(NC)"
 	@# We're keeping advanced_process.csv and edge_case_test.csv as permanent test files
-	@rm -f test_process.csv
+	@rm -f test_process.csv test_parameters.csv parameter_struct_test.csv
 
 # Run k6 memory test
 test-memory: build generate-test-files

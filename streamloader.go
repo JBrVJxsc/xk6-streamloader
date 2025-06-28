@@ -25,41 +25,41 @@ type StreamLoader struct{}
 
 // FilterConfig represents a row filter configuration
 type FilterConfig struct {
-	Type    string   `json:"type"`
-	Column  int      `json:"column"`
-	Pattern string   `json:"pattern,omitempty"`
-	Min     *float64 `json:"min,omitempty"`
-	Max     *float64 `json:"max,omitempty"`
+	Type    string   `json:"type" js:"type"`
+	Column  int      `json:"column" js:"column"`
+	Pattern string   `json:"pattern,omitempty" js:"pattern"`
+	Min     *float64 `json:"min,omitempty" js:"min"`
+	Max     *float64 `json:"max,omitempty" js:"max"`
 }
 
 // TransformConfig represents a value transform configuration
 type TransformConfig struct {
-	Type   string      `json:"type"`
-	Column int         `json:"column"`
-	Value  interface{} `json:"value,omitempty"`
-	Start  int         `json:"start,omitempty"`
-	Length *int        `json:"length,omitempty"`
+	Type   string      `json:"type" js:"type"`
+	Column int         `json:"column" js:"column"`
+	Value  interface{} `json:"value,omitempty" js:"value"`
+	Start  int         `json:"start,omitempty" js:"start"`
+	Length *int        `json:"length,omitempty" js:"length"`
 }
 
 // GroupByConfig represents grouping configuration
 type GroupByConfig struct {
-	Column int `json:"column"`
+	Column int `json:"column" js:"column"`
 }
 
 // FieldConfig represents a projection field configuration
 type FieldConfig struct {
-	Type   string      `json:"type"`
-	Column int         `json:"column,omitempty"`
-	Value  interface{} `json:"value,omitempty"`
+	Type   string      `json:"type" js:"type"`
+	Column int         `json:"column,omitempty" js:"column"`
+	Value  interface{} `json:"value,omitempty" js:"value"`
 }
 
 // ProcessCsvOptions represents options for ProcessCsvFile
 type ProcessCsvOptions struct {
-	SkipHeader bool              `json:"skipHeader"`
-	Filters    []FilterConfig    `json:"filters"`
-	Transforms []TransformConfig `json:"transforms"`
-	GroupBy    *GroupByConfig    `json:"groupBy,omitempty"`
-	Fields     []FieldConfig     `json:"fields"`
+	SkipHeader bool              `json:"skipHeader" js:"skipHeader"`
+	Filters    []FilterConfig    `json:"filters" js:"filters"`
+	Transforms []TransformConfig `json:"transforms" js:"transforms"`
+	GroupBy    *GroupByConfig    `json:"groupBy,omitempty" js:"groupBy"`
+	Fields     []FieldConfig     `json:"fields" js:"fields"`
 }
 
 // ProcessCsvFile opens a CSV file and processes it row by row using streaming to minimize memory usage.
@@ -556,6 +556,16 @@ func (StreamLoader) Tail(filePath string, n int) (string, error) {
 // isWhitespace checks for JSON whitespace characters
 func isWhitespace(b byte) bool {
 	return b == ' ' || b == '\n' || b == '\r' || b == '\t'
+}
+
+// DebugOptions returns the options structure exactly as received for debugging parameter passing
+func (StreamLoader) DebugOptions(options interface{}) interface{} {
+	return options
+}
+
+// DebugCsvOptions returns the ProcessCsvOptions exactly as received for debugging parameter passing
+func (StreamLoader) DebugCsvOptions(options ProcessCsvOptions) ProcessCsvOptions {
+	return options
 }
 
 func init() {
