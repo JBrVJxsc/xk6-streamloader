@@ -64,21 +64,21 @@ export default function () {
 }
 ```
 
-### File Loading
+### Text File Loading
 
 ```js
 import streamloader from 'k6/x/streamloader';
 import { check } from 'k6';
 
 export default function () {
-    // Load an entire file as a single string
-    const fileContent = streamloader.loadFile('path/to/your/file.txt');
+    // Load an entire text file as a single string
+    const textContent = streamloader.loadText('path/to/your/file.txt');
     
-    check(fileContent, {
+    check(textContent, {
         'file is not empty': (content) => content.length > 0,
     });
 
-    console.log(`File content: ${fileContent}`);
+    console.log(`Text content: ${textContent}`);
 }
 ```
 

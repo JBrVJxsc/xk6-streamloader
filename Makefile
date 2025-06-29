@@ -175,7 +175,7 @@ test-memory: build generate-test-files
 	wait $$K6_PID; \
 	echo "  => Peak memory (RSS) for open(): $$((MAX_RSS / 1024)) MB";
 
-	@echo "$(GREEN)Running k6 memory test for streamloader.loadFile()...$(NC)"
+	@echo "$(GREEN)Running k6 memory test for streamloader.loadText()...$(NC)"
 	@# Run k6 in the background, get its PID, and poll its memory usage
 	@$(K6_BINARY) run tests/memory/memory_test_streamloader.js > /dev/null 2>&1 & \
 	K6_PID=$$!; \
@@ -188,7 +188,7 @@ test-memory: build generate-test-files
 		sleep 0.1; \
 	done; \
 	wait $$K6_PID; \
-	echo "  => Peak memory (RSS) for streamloader.loadFile(): $$((MAX_RSS / 1024)) MB";
+	echo "  => Peak memory (RSS) for streamloader.loadText(): $$((MAX_RSS / 1024)) MB";
 
 # Generate large test files
 generate-test-files:

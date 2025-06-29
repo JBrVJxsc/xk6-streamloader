@@ -17,7 +17,7 @@ export default function () {
     console.log("Head(2) from test.txt:", head2);
     check(head2, {
         'head(2) returns 2 lines': (s) => s.split('\n').length === 2,
-        'head(2) first line correct': (s) => s.split('\n')[0] === 'This is a test file for the loadFile function.',
+        'head(2) first line correct': (s) => s.split('\n')[0] === 'This is a test file for the loadText function.',
         'head(2) second line correct': (s) => s.split('\n')[1] === 'It contains multiple lines.',
     });
 

@@ -419,8 +419,8 @@ export default function () {
     // File Loading Tests
     
     // 1. Normal case: valid file
-    const fileContent = streamloader.loadFile('test.txt');
-    const expectedContent = `This is a test file for the loadFile function.
+    const fileContent = streamloader.loadText('test.txt');
+    const expectedContent = `This is a test file for the loadText function.
 It contains multiple lines.
 And some special characters: !@#$%^&*() `;
     check(null, {
@@ -429,14 +429,14 @@ And some special characters: !@#$%^&*() `;
 
     // 2. Error case: missing file
     try {
-        streamloader.loadFile('no_such_file.txt');
+        streamloader.loadText('no_such_file.txt');
         fail('Expected error for missing file');
     } catch (e) {
         check(e, { 'error for missing file': (err) => String(err).includes('no_such_file') || String(err).includes('no such file') });
     }
 
     // 3. Edge case: empty file
-    const emptyContent = streamloader.loadFile('empty.txt');
+    const emptyContent = streamloader.loadText('empty.txt');
     check(null, {
         'file with single space returns a space': () => emptyContent === ' ',
     });

@@ -1419,7 +1419,7 @@ Jane,25,Los Angeles`
 	}
 }
 
-func TestLoadFile(t *testing.T) {
+func TestLoadText(t *testing.T) {
 	// Test case 1: Successful file read
 	content := "Hello, world!\nThis is a test file."
 	tmpfile, err := os.CreateTemp("", "testfile-*.txt")
@@ -1434,16 +1434,16 @@ func TestLoadFile(t *testing.T) {
 	tmpfile.Close()
 
 	loader := StreamLoader{}
-	result, err := loader.LoadFile(tmpfile.Name())
+	result, err := loader.LoadText(tmpfile.Name())
 	if err != nil {
-		t.Fatalf("LoadFile failed: %v", err)
+		t.Fatalf("LoadText failed: %v", err)
 	}
 	if result != content {
 		t.Errorf("expected content %q, got %q", content, result)
 	}
 
 	// Test case 2: File not found
-	_, err = loader.LoadFile("non_existent_file.txt")
+	_, err = loader.LoadText("non_existent_file.txt")
 	if err == nil {
 		t.Error("expected error for missing file, got nil")
 	}
@@ -1456,9 +1456,9 @@ func TestLoadFile(t *testing.T) {
 	defer os.Remove(emptyFile.Name())
 	emptyFile.Close()
 
-	result, err = loader.LoadFile(emptyFile.Name())
+	result, err = loader.LoadText(emptyFile.Name())
 	if err != nil {
-		t.Fatalf("LoadFile failed for empty file: %v", err)
+		t.Fatalf("LoadText failed for empty file: %v", err)
 	}
 	if result != "" {
 		t.Errorf("expected empty string for empty file, got %q", result)

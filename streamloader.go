@@ -554,14 +554,14 @@ func (StreamLoader) LoadJSON(filePath string) (any, error) {
 	}
 }
 
-// LoadFile opens the given file and reads its entire content into a string.
-// This function is optimized for performance and is suitable for loading moderate-sized files.
+// LoadText opens the given file and reads its entire content into a string.
+// This function is optimized for performance and is suitable for loading moderate-sized text files.
 // It uses os.ReadFile for an efficient single-read operation.
 //
 // Example usage:
 //
-//	content, err := streamloader.LoadFile("data.txt")
-func (StreamLoader) LoadFile(filePath string) (string, error) {
+//	content, err := streamloader.LoadText("data.txt")
+func (StreamLoader) LoadText(filePath string) (string, error) {
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
