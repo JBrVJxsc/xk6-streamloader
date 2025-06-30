@@ -11,8 +11,6 @@ A k6 extension for efficiently loading large JSON arrays, newline-delimited JSON
 - **Advanced CSV Processing**: Filter, transform, group, and project CSV data in a single pass
 - **Memory Efficient**: Minimal memory footprint with streaming architecture
 - **Large File Support**: Handle files of any size without memory spikes
-- **Robust Parsing**: Handle quoted fields, special characters, and malformed data gracefully
-- **Edge Case Handling**: Graceful handling of Unicode characters, multi-line fields, inconsistent columns, and more
 
 ## Build
 
@@ -28,18 +26,6 @@ Run all tests (Go unit tests + k6 JS tests):
 
 ```sh
 make test
-```
-
-Run only Go unit tests:
-
-```sh
-make test-go
-```
-
-Run only k6 JS tests (requires built k6 binary):
-
-```sh
-make test-k6
 ```
 
 ## Usage in k6 script
@@ -161,19 +147,6 @@ export default function () {
     const directCount = streamloader.writeCompressedObjectsToJsonArrayFile(objects, directFile);
     console.log(`Directly wrote ${directCount} objects to ${directFile}`);
     
-    // Read back the files to verify
-    const fileContent = streamloader.loadText(outputFile);
-    check(fileContent, {
-        'File contains valid JSON array': (content) => {
-            try {
-                const parsed = JSON.parse(content);
-                return Array.isArray(parsed) && parsed.length === objects.length;
-            } catch (e) {
-                return false;
-            }
-        }
-    });
-    
     // Compare compression levels
     const noCompression = streamloader.objectsToCompressedJsonLines(objects, 0).length;
     const bestSpeed = streamloader.objectsToCompressedJsonLines(objects, 1).length;
@@ -199,43 +172,21 @@ export default function () {
     check(textContent, {
         'file is not empty': (content) => content.length > 0,
     });
-
-    console.log(`Text content: ${textContent}`);
 }
 ```
 
-### Head (First N Lines)
+### File Previewing
 
 ```js
 import streamloader from 'k6/x/streamloader';
-import { check } from 'k6';
 
 export default function () {
     // Load the first 10 lines of a file
     const first10Lines = streamloader.head('path/to/your/large_file.txt', 10);
-    
-    check(first10Lines, {
-        'head is not empty': (content) => content.length > 0,
-    });
-
     console.log(`First 10 lines: ${first10Lines}`);
-}
-```
-
-### Tail (Last N Lines)
-
-```js
-import streamloader from 'k6/x/streamloader';
-import { check } from 'k6';
-
-export default function () {
+    
     // Load the last 10 lines of a file
     const last10Lines = streamloader.tail('path/to/your/large_file.txt', 10);
-    
-    check(last10Lines, {
-        'tail is not empty': (content) => content.length > 0,
-    });
-
     console.log(`Last 10 lines: ${last10Lines}`);
 }
 ```
@@ -304,186 +255,113 @@ export default function () {
 }
 ```
 
-#### ProcessCsvFile Options
+### CSV Loading with Options
 
-- **skipHeader** (boolean): Whether to skip the first row as header (default: true)
-- **filters** (array): Rules to drop unwanted rows
-  - `{ type: "emptyString", column: N }` - Drop rows with empty value in column N
-  - `{ type: "regexMatch", column: N, pattern: "regex" }` - Keep only rows where column N matches regex
-  - `{ type: "valueRange", column: N, min: X, max: Y }` - Keep only rows where column N is between X and Y
-- **transforms** (array): Modify values in-place
-  - `{ type: "parseInt", column: N }` - Convert string to integer
-  - `{ type: "fixedValue", column: N, value: V }` - Replace with constant value
-  - `{ type: "substring", column: N, start: S, length: L }` - Extract substring from column
-- **groupBy** (object): Optional grouping
-  - `{ column: N }` - Group results by column N
-- **fields** (array): Output column selection and projection
-  - `{ type: "column", column: N }` - Select column N from input
-  - `{ type: "fixed", value: V }` - Output constant value
+```js
+import streamloader from 'k6/x/streamloader';
 
-## Supported formats
+export default function () {
+    // With detailed options
+    const options = {
+        lazyQuotes: true,          // Allow unescaped quotes in quoted fields
+        trimLeadingSpace: true,    // Remove whitespace at the beginning of fields
+        trimSpace: false,          // Don't trim all whitespace (leading and trailing)
+        reuseRecord: true          // Reuse record memory for better performance
+    };
+    const csvData = streamloader.loadCSV('data.csv', options);
 
-### JSON Formats
-- **JSON array**: a top-level `[...]` containing objects (returns an array)
-- **NDJSON**: one JSON object per line, newline-separated (returns an array)
-- **JSON object**: a top-level `{...}` with key-value pairs (returns a plain object)
-
-### CSV Format
-- **CSV files**: Comma-separated values with streaming support (returns array of arrays of strings)
-- **Quoted fields**: Handles fields with commas, quotes, and newlines
-- **Variable columns**: Supports CSV files with inconsistent column counts
-- **Unicode support**: Handles special characters and international text
-- **Large files**: Memory-efficient processing of files with thousands of rows
-- **Empty fields**: Properly handles missing values and empty fields
-- **Multi-line fields**: Supports values spanning multiple lines within quotes
-
-## CSV Features
-
-- **Streaming Parser**: Reads CSV files incrementally, one row at a time
-- **Memory Efficient**: Uses 64KB buffered reading to minimize memory usage
-- **Robust Parsing**: Handles quoted fields, escaped quotes, newlines in fields, and special characters
-- **Error Handling**: Detailed error messages with line numbers for parsing issues
-- **Whitespace Handling**: Automatically trims leading whitespace from fields
-- **Flexible Format**: Supports files with variable number of columns per row
-- **Advanced Processing**: Filter, transform, group, and project data in a single pass
-
-## Files
-
-- `streamloader.go`: Extension source code with JSON and CSV loading functions
-- `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
-- `jsonl_utils_test.go`: Go unit tests for JSON utilities (JSONL and JSON array)
-- `compressed_jsonl_test.go`: Go unit tests for compressed JSON utilities
-- `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
-- `process_csv_test.js`: Basic k6 JS test script for the ProcessCsvFile function
-- `advanced_process_csv_test.js`: Advanced k6 JS tests for ProcessCsvFile with complex configurations
-- `edge_case_csv_test.js`: k6 JS tests specifically for CSV edge cases
-- `head_test.js`: k6 JS test script for the Head function
-- `tail_test.js`: k6 JS test script for the Tail function
-- `json_utils_test.js`: k6 JS test script for JSON utilities conversion functions
-- `json_roundtrip_test.js`: k6 JS test script for end-to-end JSON utilities testing
-- `json_memory_test.js`: k6 JS test script for memory efficiency of JSON utilities
-- `compressed_json_test.js`: k6 JS test script for compressed JSON utilities
-- `compression_performance_test.js`: k6 JS test script for comparing compression levels and performance
-- `Makefile`: Build and test automation
-- `generate_large_csv.py`: Script to generate large CSV files for testing
-- `generate_large_file.py`: Script to generate large text files for testing
-- `generate_large_json.py`: Script to generate large JSON files for testing
-
-### File Test Data Files:
-- `test.txt`: Basic text file for `loadFile` testing.
-- `empty.txt`: Empty text file for `loadFile` testing.
-- `large_file.txt`: Large text file for memory efficiency testing.
-
-### JSON Test Data Files:
-- `samples.json`: Basic JSON array with simple objects
-- `complex.json`: Complex nested JSON structures with various data types
-- `object.json`: Top-level JSON object with key-value pairs
-- `bad.json`: Invalid JSON for error testing
-- `empty.json`: Empty JSON array
-- `large.json`: Large JSON array for memory efficiency testing
-
-### CSV Test Data Files:
-- `basic.csv`: Basic CSV with headers and mixed data types
-- `quoted.csv`: CSV with quoted fields, commas, escaped quotes, and newlines
-- `empty.csv`: Empty CSV file for edge case testing
-- `headers_only.csv`: CSV with only header row
-- `malformed.csv`: Malformed CSV for error testing
-- `large.csv`: Large CSV for memory efficiency testing
-- `advanced_process.csv`: CSV file for testing ProcessCsvFile advanced features
-- `edge_case_test.csv`: CSV file with various edge cases (Unicode, multi-line fields, etc.)
-- `specialchars.csv`: CSV with special characters for robust parsing testing
+    // With simple boolean for backward compatibility (lazy quotes)
+    const csvDataLazy = streamloader.loadCSV('data.csv', true);
+    
+    // With default settings (all options true except trimSpace)
+    const csvDataDefault = streamloader.loadCSV('data.csv');
+}
+```
 
 ## API Reference
 
-### streamloader.loadJSON(filePath)
+### JSON Functions
+
+#### streamloader.loadJSON(filePath)
 - **Parameters**: `filePath` (string) - Path to the JSON file
 - **Returns**: Array (for JSON arrays/NDJSON) or Object (for JSON objects)
 - **Throws**: Error if file not found or JSON is malformed
 
-### streamloader.loadFile(filePath)
-- **Parameters**: `filePath` (string) - Path to the file
-- **Returns**: String containing the entire file content
-- **Throws**: Error if file not found or cannot be read
-
-### streamloader.objectsToJsonLines(objects)
+#### streamloader.objectsToJsonLines(objects)
 - **Parameters**: `objects` (array) - Array of JavaScript objects to convert to JSON lines
 - **Returns**: String containing the JSONL representation of the objects
 - **Throws**: Error if any object cannot be serialized to JSON
-- **Description**: Converts a slice of JavaScript objects into JSONL format (one JSON object per line)
 
-### streamloader.objectsToCompressedJsonLines(objects, [compressionLevel])
+#### streamloader.objectsToCompressedJsonLines(objects, [compressionLevel])
 - **Parameters**: 
   - `objects` (array) - Array of JavaScript objects to convert to compressed JSON lines
-  - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1 which is a compromise between speed and size)
+  - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1)
 - **Returns**: Base64-encoded string containing the gzip-compressed JSONL data
-- **Throws**: Error if any object cannot be serialized to JSON or compression fails
-- **Description**: Converts objects to JSON lines, compresses with gzip, and base64-encodes the result
 
-### streamloader.writeJsonLinesToArrayFile(jsonLines, outputFilePath, [bufferSize])
+#### streamloader.writeJsonLinesToArrayFile(jsonLines, outputFilePath, [bufferSize])
 - **Parameters**: 
   - `jsonLines` (string) - JSONL-formatted data with one JSON object per line
   - `outputFilePath` (string) - Path where the JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Number of objects written to the file
-- **Throws**: Error if writing fails or JSON is invalid
-- **Description**: Takes JSONL data and streams it to a file as a JSON array, minimizing memory usage
 
-### streamloader.writeCompressedJsonLinesToArrayFile(compressedJsonLines, outputFilePath, [bufferSize])
+#### streamloader.writeCompressedJsonLinesToArrayFile(compressedJsonLines, outputFilePath, [bufferSize])
 - **Parameters**:
   - `compressedJsonLines` (string) - Base64-encoded, gzip-compressed JSONL data
   - `outputFilePath` (string) - Path where the JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Number of objects written to the file
-- **Throws**: Error if decompression fails, writing fails, or JSON is invalid
-- **Description**: Decompresses the JSONL data and streams it to a file as a JSON array
 
-### streamloader.writeObjectsToJsonArrayFile(objects, outputFilePath, [bufferSize])
+#### streamloader.writeObjectsToJsonArrayFile(objects, outputFilePath, [bufferSize])
 - **Parameters**:
   - `objects` (array) - Array of JavaScript objects to write to the file
   - `outputFilePath` (string) - Path where the JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Number of objects written to the file
-- **Throws**: Error if writing fails or JSON is invalid
-- **Description**: Convenience function that combines objectsToJsonLines and writeJsonLinesToArrayFile
 
-### streamloader.writeCompressedObjectsToJsonArrayFile(objects, outputFilePath, [compressionLevel])
+#### streamloader.writeCompressedObjectsToJsonArrayFile(objects, outputFilePath, [compressionLevel])
 - **Parameters**:
   - `objects` (array) - Array of JavaScript objects to write to the file
   - `outputFilePath` (string) - Path where the JSON array file will be written
   - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1)
 - **Returns**: Number of objects written to the file
-- **Throws**: Error if compression fails, writing fails, or JSON is invalid
-- **Description**: Compresses objects and streams them to a JSON array file with minimal memory usage
 
-### streamloader.combineJsonArrayFiles(inputFilePaths, outputFilePath, [bufferSize])
+#### streamloader.combineJsonArrayFiles(inputFilePaths, outputFilePath, [bufferSize])
 - **Parameters**:
   - `inputFilePaths` (array) - Array of paths to JSON array files to combine
   - `outputFilePath` (string) - Path where the combined JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Total number of objects written to the file
-- **Throws**: Error if reading or writing fails, or JSON is invalid
-- **Description**: Combines multiple JSON array files into a single JSON array file, streaming for memory efficiency
 
-### streamloader.head(filePath, n)
+### File Functions
+
+#### streamloader.loadText(filePath)
+- **Parameters**: `filePath` (string) - Path to the file
+- **Returns**: String containing the entire file content
+- **Throws**: Error if file not found or cannot be read
+
+#### streamloader.head(filePath, n)
 - **Parameters**: 
   - `filePath` (string) - Path to the file
   - `n` (int) - Number of lines to read from the beginning of the file
 - **Returns**: String containing the first `n` lines of the file
-- **Throws**: Error if file not found or cannot be read
 
-### streamloader.tail(filePath, n)
+#### streamloader.tail(filePath, n)
 - **Parameters**:
   - `filePath` (string) - Path to the file
   - `n` (int) - Number of lines to read from the end of the file
 - **Returns**: String containing the last `n` lines of the file
-- **Throws**: Error if file not found or cannot be read
 
-### streamloader.loadCSV(filePath)
-- **Parameters**: `filePath` (string) - Path to the CSV file
+### CSV Functions
+
+#### streamloader.loadCSV(filePath, options)
+- **Parameters**: 
+  - `filePath` (string) - Path to the CSV file
+  - `options` (object or boolean, optional) - CSV parsing options or boolean for lazyQuotes
 - **Returns**: Array of arrays of strings (`[][]string`)
 - **Throws**: Error if file not found or CSV is malformed
 
-### streamloader.processCsvFile(filePath, options)
+#### streamloader.processCsvFile(filePath, options)
 - **Parameters**:
   - `filePath` (string) - Path to the CSV file
   - `options` (object) - Configuration object for processing CSV data:
@@ -493,7 +371,6 @@ export default function () {
     - `groupBy` (object) - Optional grouping configuration
     - `fields` (array) - Projection field configurations
 - **Returns**: Array of arrays containing processed data, with grouping if specified
-- **Throws**: Error if file not found, CSV is malformed, or options contain invalid configurations
 
 ## Memory Efficiency
 
@@ -503,5 +380,3 @@ Both JSON and CSV loaders are designed for memory efficiency:
 - **Buffered I/O**: 64KB buffer size for optimal performance
 - **Compression Support**: Gzip compression to reduce memory footprint and file size
 - **Minimal Memory Footprint**: Consistent memory usage regardless of file size
-- **No Memory Spikes**: Avoid large memory allocations during processing
-- **Configurable Compression Levels**: Balance between speed and memory usage
