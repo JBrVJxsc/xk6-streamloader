@@ -1199,6 +1199,226 @@ func (s StreamLoader) WriteCompressedObjectsToJsonArrayFile(objects []interface{
 	return s.WriteCompressedJsonLinesToArrayFile(compressedData, outputFilePath)
 }
 
+// WriteMultipleCompressedJsonLinesToArrayFile takes multiple compressed JSON lines strings,
+// decompresses them, and writes them as a single JSON array to a file. This is useful
+// for combining data from multiple sources or batches while maintaining memory efficiency.
+//
+// Parameters:
+//   - compressedJsonLinesArray: An array of base64-encoded, gzip-compressed JSONL strings.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB).
+//
+// Returns:
+//   - The total count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	compressedBatch1 := "H4sIAAAAAAACA6tWykvMTVWyUrJSMjQ..." // Compressed JSON lines
+//	compressedBatch2 := "H4sIAAAAAAAAA6tWSk4uSixJVbJSMjY..." // Another batch
+//	count, err := streamloader.writeMultipleCompressedJsonLinesToArrayFile(
+//	    []string{compressedBatch1, compressedBatch2}, "combined.json")
+//	// Will write a single combined JSON array to combined.json
+func (StreamLoader) WriteMultipleCompressedJsonLinesToArrayFile(compressedJsonLinesArray []string, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	totalCount := 0
+	isFirstObject := true
+
+	// Process each compressed JSON lines string
+	for compressedIndex, compressedJsonLines := range compressedJsonLinesArray {
+		if compressedJsonLines == "" {
+			continue // Skip empty strings
+		}
+
+		// Decode base64 data
+		compressedData, err := base64.StdEncoding.DecodeString(compressedJsonLines)
+		if err != nil {
+			return totalCount, fmt.Errorf("failed to decode base64 data at index %d: %w", compressedIndex, err)
+		}
+
+		// Set up the gzip reader to decompress the data
+		gzReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+		if err != nil {
+			return totalCount, fmt.Errorf("failed to create gzip reader at index %d: %w", compressedIndex, err)
+		}
+
+		// Process the decompressed JSON lines
+		scanner := bufio.NewScanner(gzReader)
+		// For very large lines, increase the scanner buffer size
+		scanner.Buffer(make([]byte, bufSize), 10*bufSize)
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue // Skip empty lines
+			}
+
+			// Write comma separator for all but the first object
+			if !isFirstObject {
+				if _, err := writer.WriteString(","); err != nil {
+					gzReader.Close()
+					return totalCount, fmt.Errorf("failed to write comma separator: %w", err)
+				}
+			} else {
+				isFirstObject = false
+			}
+
+			// Write the JSON object to the file
+			if _, err := writer.WriteString(line); err != nil {
+				gzReader.Close()
+				return totalCount, fmt.Errorf("failed to write JSON object: %w", err)
+			}
+
+			totalCount++
+		}
+
+		if err := scanner.Err(); err != nil {
+			gzReader.Close()
+			return totalCount, fmt.Errorf("error reading decompressed JSON lines at index %d: %w", compressedIndex, err)
+		}
+
+		// Close the gzip reader
+		gzReader.Close()
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return totalCount, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return totalCount, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return totalCount, nil
+}
+
+// WriteMultipleJsonLinesToArrayFile takes multiple JSON lines strings and writes them
+// as a single JSON array to a file. It streams the output to minimize memory usage.
+//
+// Parameters:
+//   - jsonLinesArray: An array of strings containing JSONL-formatted data.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB).
+//
+// Returns:
+//   - The total count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	batch1 := '{"id":1,"name":"Alice"}\n{"id":2,"name":"Bob"}'
+//	batch2 := '{"id":3,"name":"Charlie"}\n{"id":4,"name":"Dave"}'
+//	count, err := streamloader.writeMultipleJsonLinesToArrayFile(
+//	    []string{batch1, batch2}, "combined.json")
+//	// Will write '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"},{"id":3,"name":"Charlie"},{"id":4,"name":"Dave"}]'
+//	// to combined.json
+func (StreamLoader) WriteMultipleJsonLinesToArrayFile(jsonLinesArray []string, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	totalCount := 0
+	isFirstObject := true
+
+	// Process each JSON lines string
+	for batchIndex, jsonLines := range jsonLinesArray {
+		if jsonLines == "" {
+			continue // Skip empty strings
+		}
+
+		// Process the JSON lines
+		scanner := bufio.NewScanner(strings.NewReader(jsonLines))
+		// For very large lines, increase the scanner buffer size
+		scanner.Buffer(make([]byte, bufSize), 10*bufSize)
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue // Skip empty lines
+			}
+
+			// Write comma separator for all but the first object
+			if !isFirstObject {
+				if _, err := writer.WriteString(","); err != nil {
+					return totalCount, fmt.Errorf("failed to write comma separator: %w", err)
+				}
+			} else {
+				isFirstObject = false
+			}
+
+			// Validate that the line is a valid JSON object
+			var obj interface{}
+			if err := json.Unmarshal([]byte(line), &obj); err != nil {
+				return totalCount, fmt.Errorf("invalid JSON at batch %d: %w", batchIndex, err)
+			}
+			
+			// Write the JSON object to the file
+			if _, err := writer.WriteString(line); err != nil {
+				return totalCount, fmt.Errorf("failed to write JSON object from batch %d: %w", batchIndex, err)
+			}
+
+			totalCount++
+		}
+
+		if err := scanner.Err(); err != nil {
+			return totalCount, fmt.Errorf("error reading JSON lines from batch %d: %w", batchIndex, err)
+		}
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return totalCount, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return totalCount, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return totalCount, nil
+}
+
 func init() {
 	modules.Register("k6/x/streamloader", new(StreamLoader))
 }

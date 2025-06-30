@@ -159,6 +159,54 @@ export default function () {
 }
 ```
 
+### Working with Multiple JSON Line Batches
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Create multiple batches of objects
+    const batch1 = [
+        { id: 1, name: "Alice" },
+        { id: 2, name: "Bob" }
+    ];
+    
+    const batch2 = [
+        { id: 3, name: "Charlie", details: { age: 30 } },
+        { id: 4, name: "Dave" }
+    ];
+    
+    // Approach 1: Convert each batch to JSON lines
+    const jsonLines1 = streamloader.objectsToJsonLines(batch1);
+    const jsonLines2 = streamloader.objectsToJsonLines(batch2);
+    
+    // Combine multiple JSON line strings into a single JSON array file
+    const combinedPath = "combined_uncompressed.json";
+    const combinedCount = streamloader.writeMultipleJsonLinesToArrayFile(
+        [jsonLines1, jsonLines2], combinedPath);
+    console.log(`Wrote ${combinedCount} objects to ${combinedPath}`);
+    
+    // Approach 2: Use compression for more efficient storage/transfer
+    const compressedLines1 = streamloader.objectsToCompressedJsonLines(batch1);
+    const compressedLines2 = streamloader.objectsToCompressedJsonLines(batch2);
+    
+    // Combine multiple compressed JSON line strings into a single JSON array file
+    const compressedPath = "combined_from_compressed.json";
+    const compressedCount = streamloader.writeMultipleCompressedJsonLinesToArrayFile(
+        [compressedLines1, compressedLines2], compressedPath);
+    console.log(`Wrote ${compressedCount} objects to ${compressedPath}`);
+    
+    // Verify the files contain the same data
+    const combined1 = JSON.parse(streamloader.loadText(combinedPath));
+    const combined2 = JSON.parse(streamloader.loadText(compressedPath));
+    
+    check(combined1.length, {
+        'Both approaches produced the same number of objects': val => val === combined2.length
+    });
+}
+```
+
 ### Text File Loading
 
 ```js
@@ -330,6 +378,20 @@ export default function () {
 - **Parameters**:
   - `inputFilePaths` (array) - Array of paths to JSON array files to combine
   - `outputFilePath` (string) - Path where the combined JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Total number of objects written to the file
+
+#### streamloader.writeMultipleJsonLinesToArrayFile(jsonLinesArray, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `jsonLinesArray` (array) - Array of strings containing JSONL-formatted data
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Total number of objects written to the file
+
+#### streamloader.writeMultipleCompressedJsonLinesToArrayFile(compressedJsonLinesArray, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `compressedJsonLinesArray` (array) - Array of base64-encoded, gzip-compressed JSONL strings
+  - `outputFilePath` (string) - Path where the JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Total number of objects written to the file
 
