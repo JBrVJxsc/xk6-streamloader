@@ -166,44 +166,99 @@ import streamloader from 'k6/x/streamloader';
 import { check } from 'k6';
 
 export default function () {
+    // Scenario: You're processing data in batches (e.g., from an API that returns paginated results)
+    // or parallel processing where different workers generate separate batches of data.
+    
     // Create multiple batches of objects
     const batch1 = [
-        { id: 1, name: "Alice" },
-        { id: 2, name: "Bob" }
+        { id: 1, name: "Alice", department: "Engineering" },
+        { id: 2, name: "Bob", department: "Marketing" }
     ];
     
     const batch2 = [
-        { id: 3, name: "Charlie", details: { age: 30 } },
-        { id: 4, name: "Dave" }
+        { id: 3, name: "Charlie", department: "Sales", details: { age: 30 } },
+        { id: 4, name: "Dave", department: "Finance" }
     ];
     
-    // Approach 1: Convert each batch to JSON lines
+    // Approach 1: Using uncompressed JSON lines
+    // Step 1: Convert each batch to JSON lines
     const jsonLines1 = streamloader.objectsToJsonLines(batch1);
     const jsonLines2 = streamloader.objectsToJsonLines(batch2);
     
-    // Combine multiple JSON line strings into a single JSON array file
+    // Step 2: Write multiple JSON line strings to a single JSON array file
     const combinedPath = "combined_uncompressed.json";
     const combinedCount = streamloader.writeMultipleJsonLinesToArrayFile(
         [jsonLines1, jsonLines2], combinedPath);
     console.log(`Wrote ${combinedCount} objects to ${combinedPath}`);
+    // Output: [{"id":1,"name":"Alice","department":"Engineering"},{"id":2,"name":"Bob","department":"Marketing"},
+    //         {"id":3,"name":"Charlie","department":"Sales","details":{"age":30}},{"id":4,"name":"Dave","department":"Finance"}]
     
-    // Approach 2: Use compression for more efficient storage/transfer
+    // Approach 2: Using compression for more efficient storage/transfer
+    // Step 1: Convert and compress each batch
     const compressedLines1 = streamloader.objectsToCompressedJsonLines(batch1);
     const compressedLines2 = streamloader.objectsToCompressedJsonLines(batch2);
     
-    // Combine multiple compressed JSON line strings into a single JSON array file
+    // Step 2: Write multiple compressed JSON line strings to a single JSON array file
+    // The function handles decompression and writes a standard JSON array file
     const compressedPath = "combined_from_compressed.json";
     const compressedCount = streamloader.writeMultipleCompressedJsonLinesToArrayFile(
         [compressedLines1, compressedLines2], compressedPath);
     console.log(`Wrote ${compressedCount} objects to ${compressedPath}`);
     
-    // Verify the files contain the same data
+    // Both approaches produce identical JSON files
     const combined1 = JSON.parse(streamloader.loadText(combinedPath));
     const combined2 = JSON.parse(streamloader.loadText(compressedPath));
     
     check(combined1.length, {
         'Both approaches produced the same number of objects': val => val === combined2.length
     });
+    
+    // Optional: You can specify buffer size for better performance with very large files
+    // The buffer size controls how much data is held in memory during file operations
+    const largeBufferSize = 256 * 1024; // 256 KB buffer (default is 64 KB)
+    
+    streamloader.writeMultipleJsonLinesToArrayFile(
+        [jsonLines1, jsonLines2], "large_buffer_example.json", largeBufferSize);
+    
+    // Real-world use case: Process data in chunks to avoid memory spikes
+    // This is especially useful for very large datasets that can't fit in memory at once
+    function processLargeDatasetInChunks(chunkSize, totalRecords) {
+        const compressedBatches = [];
+        
+        // Simulate processing data in chunks
+        for (let offset = 0; offset < totalRecords; offset += chunkSize) {
+            // In real code, you would fetch/process each chunk of data here
+            const chunk = generateDataChunk(offset, Math.min(chunkSize, totalRecords - offset));
+            
+            // Compress each chunk to save memory
+            const compressedChunk = streamloader.objectsToCompressedJsonLines(chunk);
+            compressedBatches.push(compressedChunk);
+            
+            console.log(`Processed chunk ${offset/chunkSize + 1}, total chunks: ${Math.ceil(totalRecords/chunkSize)}`);
+        }
+        
+        // Combine all chunks into a single file without using much memory
+        return streamloader.writeMultipleCompressedJsonLinesToArrayFile(
+            compressedBatches, "large_dataset_output.json");
+    }
+    
+    // Helper to generate sample data
+    function generateDataChunk(startId, count) {
+        const chunk = [];
+        for (let i = 0; i < count; i++) {
+            chunk.push({
+                id: startId + i,
+                name: `User-${startId + i}`,
+                timestamp: new Date().toISOString()
+            });
+        }
+        return chunk;
+    }
+    
+    // Example: Process 10,000 records in chunks of 2,500
+    // This allows processing very large datasets with minimal memory usage
+    const totalCount = processLargeDatasetInChunks(2500, 10000);
+    console.log(`Processed and wrote ${totalCount} total records`);
 }
 ```
 
