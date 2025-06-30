@@ -87,6 +87,18 @@ test-k6: build generate-test-files prepare-test-env
 		echo "$(RED)Error: tests/json/compression_performance_test.js not found$(NC)"; \
 		exit 1; \
 	fi
+	@if [ -f "tests/json/reverse_json_test.js" ]; then \
+		$(K6_BINARY) run --quiet tests/json/reverse_json_test.js || exit 1; \
+	else \
+		echo "$(RED)Error: tests/json/reverse_json_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/json/roundtrip_test.js" ]; then \
+		$(K6_BINARY) run --quiet tests/json/roundtrip_test.js || exit 1; \
+	else \
+		echo "$(RED)Error: tests/json/roundtrip_test.js not found$(NC)"; \
+		exit 1; \
+	fi
 	@if [ -f "tests/json/head_test.js" ]; then \
 		$(K6_BINARY) run --quiet tests/json/head_test.js || exit 1; \
 	else \
@@ -182,7 +194,7 @@ test-k6: build generate-test-files prepare-test-env
 	@# We're keeping advanced_process.csv and edge_case_test.csv as permanent test files
 	@rm -f $(BUILD_DIR)/test_process.csv $(BUILD_DIR)/test_parameters.csv $(BUILD_DIR)/parameter_struct_test.csv $(BUILD_DIR)/comprehensive_param_test.csv $(BUILD_DIR)/null_value_param_test.csv $(BUILD_DIR)/struct_tags_test.csv
 	@# Clean up JSON test files
-	@rm -f test_output.jsonl test_output.json test_roundtrip.json special_test.json roundtrip_test.jsonl roundtrip_test.json direct_write_test.json large_dataset.json large_dataset_direct.json combined_dataset.json
+	@rm -f test_output.jsonl test_output.json test_roundtrip.json special_test.json roundtrip_test.jsonl roundtrip_test.json direct_write_test.json large_dataset.json large_dataset_direct.json combined_dataset.json test_reverse_jsonl.json test_reverse_compressed.json multi_roundtrip_test.json
 	@# Clean up compressed JSON test files
 	@rm -f compressed_output.json direct_compressed.json special_compressed.json medium_compressed.json two_step_result.json direct_result.json
 

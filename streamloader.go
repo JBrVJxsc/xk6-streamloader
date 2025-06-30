@@ -24,6 +24,7 @@ import (
 // It provides LoadJSON for reading large JSON files efficiently
 // using a small buffer and supporting standard JSON arrays, NDJSON, or JSON objects.
 // It also provides LoadCSV for streaming CSV files with minimal memory footprint.
+// Additionally, it includes utilities for converting between JSON formats and working with compressed JSON data.
 type StreamLoader struct{}
 
 // FilterConfig represents a row filter configuration
@@ -1216,7 +1217,7 @@ func (s StreamLoader) WriteCompressedObjectsToJsonArrayFile(objects []interface{
 //
 //	compressedBatch1 := "H4sIAAAAAAACA6tWykvMTVWyUrJSMjQ..." // Compressed JSON lines
 //	compressedBatch2 := "H4sIAAAAAAAAA6tWSk4uSixJVbJSMjY..." // Another batch
-//	count, err := streamloader.writeMultipleCompressedJsonLinesToArrayFile(
+//	count, err := streamloader.WriteMultipleCompressedJsonLinesToArrayFile(
 //	    []string{compressedBatch1, compressedBatch2}, "combined.json")
 //	// Will write a single combined JSON array to combined.json
 func (StreamLoader) WriteMultipleCompressedJsonLinesToArrayFile(compressedJsonLinesArray []string, outputFilePath string, bufferSize ...int) (int, error) {
@@ -1331,7 +1332,7 @@ func (StreamLoader) WriteMultipleCompressedJsonLinesToArrayFile(compressedJsonLi
 //
 //	batch1 := '{"id":1,"name":"Alice"}\n{"id":2,"name":"Bob"}'
 //	batch2 := '{"id":3,"name":"Charlie"}\n{"id":4,"name":"Dave"}'
-//	count, err := streamloader.writeMultipleJsonLinesToArrayFile(
+//	count, err := streamloader.WriteMultipleJsonLinesToArrayFile(
 //	    []string{batch1, batch2}, "combined.json")
 //	// Will write '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"},{"id":3,"name":"Charlie"},{"id":4,"name":"Dave"}]'
 //	// to combined.json
@@ -1417,6 +1418,92 @@ func (StreamLoader) WriteMultipleJsonLinesToArrayFile(jsonLinesArray []string, o
 	}
 
 	return totalCount, nil
+}
+
+// JsonLinesToObjects takes a JSONL-formatted string and converts it to a slice of objects.
+// Each line in the input is parsed as a separate JSON object.
+//
+// Parameters:
+//   - jsonLines: A string containing JSONL-formatted data, with one JSON object per line.
+//
+// Returns:
+//   - A slice of parsed objects ([]interface{}).
+//   - An error if any line contains invalid JSON.
+//
+// Example:
+//
+//     jsonLines := `{"id":1,"name":"Alice"}
+//     {"id":2,"name":"Bob"}`
+//     objects, err := streamloader.JsonLinesToObjects(jsonLines)
+//     // objects will be [{id:1, name:"Alice"}, {id:2, name:"Bob"}]
+func (StreamLoader) JsonLinesToObjects(jsonLines string) ([]interface{}, error) {
+	if jsonLines == "" {
+		return []interface{}{}, nil
+	}
+
+	var objects []interface{}
+	scanner := bufio.NewScanner(strings.NewReader(jsonLines))
+	
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue // Skip empty lines
+		}
+
+		var obj interface{}
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			return nil, fmt.Errorf("invalid JSON at line %d: %w", lineNum, err)
+		}
+		objects = append(objects, obj)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading JSON lines: %w", err)
+	}
+
+	return objects, nil
+}
+
+// CompressedJsonLinesToObjects takes a base64-encoded, gzip-compressed JSONL string
+// and converts it to a slice of objects. It decodes the base64 data, decompresses it,
+// and parses each line as a separate JSON object.
+//
+// Parameters:
+//   - compressedJsonLines: A base64-encoded string containing gzip-compressed JSONL data.
+//
+// Returns:
+//   - A slice of parsed objects ([]interface{}).
+//   - An error if decompression fails or any line contains invalid JSON.
+//
+// Example:
+//
+//     compressedData := "H4sIAAAAAAAA/6tWSk5OLCpKVbJSMjA2M9RRKsgsVrIyBHITKzNSixQUQPLJ..."
+//     objects, err := streamloader.CompressedJsonLinesToObjects(compressedData)
+//     // objects will be the decompressed and parsed objects
+func (s StreamLoader) CompressedJsonLinesToObjects(compressedJsonLines string) ([]interface{}, error) {
+	// Decode base64 data
+	compressedData, err := base64.StdEncoding.DecodeString(compressedJsonLines)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 data: %w", err)
+	}
+
+	// Set up the gzip reader to decompress the data
+	gzReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Read all decompressed data
+	decompressed, err := io.ReadAll(gzReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decompress data: %w", err)
+	}
+
+	// Convert to string and parse using JsonLinesToObjects
+	return (&StreamLoader{}).JsonLinesToObjects(string(decompressed))
 }
 
 func init() {

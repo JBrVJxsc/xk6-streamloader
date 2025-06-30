@@ -5,12 +5,13 @@ A k6 extension for efficiently loading large JSON arrays, newline-delimited JSON
 ## Features
 
 - **JSON Support**: Load JSON arrays, NDJSON, and JSON objects
-- **JSON Utilities**: Convert JavaScript objects to JSON lines and stream write JSON arrays to files
+- **JSON Utilities**: Convert JavaScript objects to JSON lines and vice versa, stream write JSON arrays to files
 - **Compression Support**: Gzip compression for JSON lines to reduce memory footprint and file size
 - **CSV Support**: Stream CSV files with incremental parsing
 - **Advanced CSV Processing**: Filter, transform, group, and project CSV data in a single pass
 - **Memory Efficient**: Minimal memory footprint with streaming architecture
 - **Large File Support**: Handle files of any size without memory spikes
+- **Bidirectional Conversion**: Convert between objects and JSON lines formats in both directions
 
 ## Build
 
@@ -103,6 +104,65 @@ export default function () {
 }
 ```
 
+### JSON Lines Conversion (Both Directions)
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Sample objects
+    const objects = [
+        { id: 1, name: "Alice", details: { age: 30 } },
+        { id: 2, name: "Bob", active: true },
+        { id: 3, name: "Charlie", tags: ["admin", "user"] }
+    ];
+    
+    // Convert objects to JSON lines
+    const jsonLines = streamloader.objectsToJsonLines(objects);
+    console.log("JSON Lines:", jsonLines);
+    // Output: {"id":1,"name":"Alice","details":{"age":30}}
+    //         {"id":2,"name":"Bob","active":true}
+    //         {"id":3,"name":"Charlie","tags":["admin","user"]}
+    
+    // Convert JSON lines back to objects
+    const parsedObjects = streamloader.jsonLinesToObjects(jsonLines);
+    console.log("Parsed Objects:", JSON.stringify(parsedObjects));
+    
+    check(parsedObjects, {
+        'Objects match after roundtrip': (arr) => 
+            JSON.stringify(arr) === JSON.stringify(objects)
+    });
+    
+    // Using compression
+    const compressedJsonLines = streamloader.objectsToCompressedJsonLines(objects);
+    console.log(`Compressed size: ${compressedJsonLines.length} bytes`);
+    
+    // Convert compressed JSON lines back to objects
+    const decompressedObjects = streamloader.compressedJsonLinesToObjects(compressedJsonLines);
+    
+    check(decompressedObjects, {
+        'Objects match after compression roundtrip': (arr) => 
+            JSON.stringify(arr) === JSON.stringify(objects)
+    });
+    
+    // Complete roundtrip example:
+    // 1. Objects to JSON lines
+    // 2. JSON lines to objects
+    // 3. Objects to compressed JSON lines
+    // 4. Compressed JSON lines to objects
+    const step1 = streamloader.objectsToJsonLines(objects);
+    const step2 = streamloader.jsonLinesToObjects(step1);
+    const step3 = streamloader.objectsToCompressedJsonLines(step2);
+    const step4 = streamloader.compressedJsonLinesToObjects(step3);
+    
+    check(step4, {
+        'Objects preserved through multiple conversions': (arr) => 
+            JSON.stringify(arr) === JSON.stringify(objects)
+    });
+}
+```
+
 ### Compressed JSON Utilities
 
 ```js
@@ -156,6 +216,22 @@ export default function () {
     - No compression: ${noCompression} bytes
     - Best speed: ${bestSpeed} bytes
     - Best compression: ${bestCompression} bytes`);
+    
+    // Convert compressed JSON lines back to objects
+    const decompressedObjects = streamloader.compressedJsonLinesToObjects(compressedJsonLines);
+    console.log(`Decompressed ${decompressedObjects.length} objects`);
+    
+    // Verify that decompressed objects match the original
+    check(decompressedObjects.length, {
+        'Decompressed all objects correctly': (len) => len === objects.length
+    });
+    
+    // Check a sample object to verify correct decompression
+    check(decompressedObjects[42], {
+        'Sample object matches original': (obj) => 
+            obj.id === objects[42].id && 
+            obj.name === objects[42].name
+    });
 }
 ```
 
@@ -259,6 +335,14 @@ export default function () {
     // This allows processing very large datasets with minimal memory usage
     const totalCount = processLargeDatasetInChunks(2500, 10000);
     console.log(`Processed and wrote ${totalCount} total records`);
+    
+    // Alternative approach: Convert compressed batches back to objects for processing
+    const decompressed1 = streamloader.compressedJsonLinesToObjects(compressedLines1);
+    const decompressed2 = streamloader.compressedJsonLinesToObjects(compressedLines2);
+    
+    // Now you can work with the decompressed objects directly
+    console.log(`Decompressed batch 1: ${decompressed1.length} objects`);
+    console.log(`Decompressed batch 2: ${decompressed2.length} objects`);
 }
 ```
 
@@ -401,6 +485,16 @@ export default function () {
   - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1)
 - **Returns**: Base64-encoded string containing the gzip-compressed JSONL data
 
+#### streamloader.jsonLinesToObjects(jsonLines)
+- **Parameters**: `jsonLines` (string) - A string containing JSONL-formatted data, with one JSON object per line
+- **Returns**: Array of parsed JavaScript objects
+- **Throws**: Error if any line contains invalid JSON
+
+#### streamloader.compressedJsonLinesToObjects(compressedJsonLines)
+- **Parameters**: `compressedJsonLines` (string) - A base64-encoded string containing gzip-compressed JSONL data
+- **Returns**: Array of parsed JavaScript objects
+- **Throws**: Error if decompression fails or any line contains invalid JSON
+
 #### streamloader.writeJsonLinesToArrayFile(jsonLines, outputFilePath, [bufferSize])
 - **Parameters**: 
   - `jsonLines` (string) - JSONL-formatted data with one JSON object per line
@@ -496,4 +590,5 @@ Both JSON and CSV loaders are designed for memory efficiency:
 - **Streaming Architecture**: Process data incrementally without loading entire files
 - **Buffered I/O**: 64KB buffer size for optimal performance
 - **Compression Support**: Gzip compression to reduce memory footprint and file size
+- **Bidirectional Conversion**: Convert between objects and JSON lines formats in both directions
 - **Minimal Memory Footprint**: Consistent memory usage regardless of file size
