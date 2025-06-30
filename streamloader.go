@@ -3,7 +3,10 @@ package streamloader
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"container/ring"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -186,7 +189,7 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 
 		// Make a copy and normalize fields
 		row := make([]string, len(record))
-		
+
 		// Apply trimming according to options
 		if options.TrimSpace {
 			for i, field := range record {
@@ -339,12 +342,15 @@ func (StreamLoader) ProcessCsvFile(filePath string, options ProcessCsvOptions) (
 // - lazyQuotes: Controls how strictly the CSV parser handles quotes (default: true)
 //   - When true, quotes may appear in an unquoted field and a non-doubled quote may appear in a quoted field
 //   - When false, strict RFC 4180 compliance is enforced
+//
 // - trimLeadingSpace: Removes leading whitespace from fields (default: true)
 //   - Only removes whitespace at the beginning of fields when a field is read
 //   - This is a built-in feature of the CSV reader
+//
 // - trimSpace: Removes all whitespace from fields (leading and trailing) (default: false)
 //   - This is a more aggressive trimming that removes both leading and trailing whitespace
 //   - When true, this overrides the CSV reader's built-in TrimLeadingSpace behavior
+//
 // - reuseRecord: Reuses record memory for better performance (default: true)
 //   - Reduces memory allocations by reusing the same slice for each record
 //   - Only set to false if you need to retain references to individual records
@@ -426,7 +432,7 @@ func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]stri
 
 		// Make a copy of the record to avoid memory sharing issues
 		recordCopy := make([]string, len(record))
-		
+
 		// Apply TrimSpace if enabled
 		if isTrimSpace {
 			for i, field := range record {
@@ -435,7 +441,7 @@ func (s StreamLoader) LoadCSV(filePath string, options ...interface{}) ([][]stri
 		} else {
 			copy(recordCopy, record)
 		}
-		
+
 		records = append(records, recordCopy)
 	}
 
@@ -657,6 +663,540 @@ func (StreamLoader) DebugOptions(options interface{}) interface{} {
 // DebugCsvOptions returns the ProcessCsvOptions exactly as received for debugging parameter passing
 func (StreamLoader) DebugCsvOptions(options ProcessCsvOptions) ProcessCsvOptions {
 	return options
+}
+
+// ObjectsToJsonLines converts a slice of JavaScript objects (represented as maps) into JSONL format.
+// Each object is JSON-encoded and placed on a separate line with a newline character separator.
+// This is useful for efficiently serializing large datasets for storage or streaming.
+//
+// Parameters:
+//   - objects: An array of JavaScript objects to convert to JSONL format.
+//
+// Returns:
+//   - A string containing the JSONL representation of the objects.
+//
+// Example:
+//
+//	objects = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+//	jsonLines = streamloader.ObjectsToJsonLines(objects)
+//	// jsonLines will be '{"id":1,"name":"Alice"}\n{"id":2,"name":"Bob"}'
+func (StreamLoader) ObjectsToJsonLines(objects []interface{}) (string, error) {
+	var builder strings.Builder
+	encoder := json.NewEncoder(&builder)
+	encoder.SetEscapeHTML(false) // Avoid escaping HTML entities like &, <, >
+
+	for i, obj := range objects {
+		if err := encoder.Encode(obj); err != nil {
+			return "", fmt.Errorf("failed to encode object at index %d: %w", i, err)
+		}
+	}
+
+	// The encoder adds a newline after each object, which is what we want for JSONL format
+	// We just need to trim the trailing newline if present
+	jsonLines := builder.String()
+	if len(jsonLines) > 0 && jsonLines[len(jsonLines)-1] == '\n' {
+		jsonLines = jsonLines[:len(jsonLines)-1]
+	}
+
+	return jsonLines, nil
+}
+
+// ObjectsToCompressedJsonLines converts a slice of JavaScript objects into JSONL format and
+// compresses the result using gzip. The compressed data is then base64-encoded to make it
+// easy to transport as a string. This is useful for efficiently serializing and compressing
+// large datasets.
+//
+// Parameters:
+//   - objects: An array of JavaScript objects to convert to compressed JSONL format.
+//   - compressionLevel: Optional compression level (0-9, where 0=no compression, 1=best speed,
+//     9=best compression). Default is gzip.DefaultCompression (-1).
+//
+// Returns:
+//   - A base64-encoded string containing the gzip-compressed JSONL data.
+//
+// Example:
+//
+//	objects = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+//	compressedJsonLines = streamloader.ObjectsToCompressedJsonLines(objects)
+//	// Returns base64-encoded gzipped JSON lines
+func (s StreamLoader) ObjectsToCompressedJsonLines(objects []interface{}, compressionLevel ...int) (string, error) {
+	// First convert objects to JSON lines
+	jsonLines, err := s.ObjectsToJsonLines(objects)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert objects to JSON lines: %w", err)
+	}
+
+	// Set default compression level if not provided
+	level := gzip.DefaultCompression
+	if len(compressionLevel) > 0 && compressionLevel[0] >= gzip.NoCompression && compressionLevel[0] <= gzip.BestCompression {
+		level = compressionLevel[0]
+	}
+
+	// Compress the JSON lines with gzip
+	var compressedBuffer bytes.Buffer
+	gzWriter, err := gzip.NewWriterLevel(&compressedBuffer, level)
+	if err != nil {
+		return "", fmt.Errorf("failed to create gzip writer: %w", err)
+	}
+
+	// Write the JSON lines to the gzip writer
+	if _, err := gzWriter.Write([]byte(jsonLines)); err != nil {
+		gzWriter.Close()
+		return "", fmt.Errorf("failed to compress data: %w", err)
+	}
+
+	// Close the gzip writer to flush all data
+	if err := gzWriter.Close(); err != nil {
+		return "", fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	// Base64 encode the compressed data
+	compressedBase64 := base64.StdEncoding.EncodeToString(compressedBuffer.Bytes())
+	return compressedBase64, nil
+}
+
+// WriteJsonLinesToArrayFile reads JSONL-formatted data (one JSON object per line) and writes it
+// as a single JSON array to a file. It streams the output to minimize memory usage, making it
+// suitable for very large datasets.
+//
+// Parameters:
+//   - jsonLines: A string containing JSONL-formatted data, with one JSON object per line.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB). Determines how much data is
+//     buffered before writing to disk.
+//
+// Returns:
+//   - The count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	jsonLines := '{"id":1,"name":"Alice"}\n{"id":2,"name":"Bob"}'
+//	count, err := streamloader.WriteJsonLinesToArrayFile(jsonLines, "output.json")
+//	// Will write '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]' to output.json
+func (StreamLoader) WriteJsonLinesToArrayFile(jsonLines string, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	// Process the JSON lines
+	scanner := bufio.NewScanner(strings.NewReader(jsonLines))
+	// For very large lines, increase the scanner buffer size
+	scanner.Buffer(make([]byte, bufSize), 10*bufSize)
+
+	count := 0
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue // Skip empty lines
+		}
+
+		// Write comma separator for all but the first object
+		if count > 0 {
+			if _, err := writer.WriteString(","); err != nil {
+				return count, fmt.Errorf("failed to write comma separator: %w", err)
+			}
+		}
+
+		// Validate that the line is a valid JSON object
+		var obj interface{}
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			return count, fmt.Errorf("invalid JSON at line %d: %w", count+1, err)
+		}
+
+		// Write the JSON object to the file
+		if _, err := writer.WriteString(line); err != nil {
+			return count, fmt.Errorf("failed to write JSON object: %w", err)
+		}
+
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return count, fmt.Errorf("error reading JSON lines: %w", err)
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return count, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return count, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return count, nil
+}
+
+// WriteCompressedJsonLinesToArrayFile decompresses gzipped, base64-encoded JSONL data and writes
+// it as a single JSON array to a file. It streams the output to minimize memory usage, making it
+// suitable for very large compressed datasets.
+//
+// Parameters:
+//   - compressedJsonLines: A base64-encoded string containing gzip-compressed JSONL data.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB). Determines how much data is
+//     buffered before writing to disk.
+//
+// Returns:
+//   - The count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	compressedData := "H4sIAAAAAAAA/6tWSk5OLCpKVbJSMjA2M9RRKsgsVrIyBHITKzNSixQUQPLJ..."
+//	count, err := streamloader.WriteCompressedJsonLinesToArrayFile(compressedData, "output.json")
+//	// Will decompress and write the JSON array to output.json
+func (StreamLoader) WriteCompressedJsonLinesToArrayFile(compressedJsonLines string, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Decode base64 data
+	compressedData, err := base64.StdEncoding.DecodeString(compressedJsonLines)
+	if err != nil {
+		return 0, fmt.Errorf("failed to decode base64 data: %w", err)
+	}
+
+	// Set up the gzip reader to decompress the data
+	gzReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		return 0, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	// Process the decompressed JSON lines
+	scanner := bufio.NewScanner(gzReader)
+	// For very large lines, increase the scanner buffer size
+	scanner.Buffer(make([]byte, bufSize), 10*bufSize)
+
+	count := 0
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue // Skip empty lines
+		}
+
+		// Write comma separator for all but the first object
+		if count > 0 {
+			if _, err := writer.WriteString(","); err != nil {
+				return count, fmt.Errorf("failed to write comma separator: %w", err)
+			}
+		}
+
+		// Validate that the line is a valid JSON object
+		var obj interface{}
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			return count, fmt.Errorf("invalid JSON at line %d: %w", count+1, err)
+		}
+
+		// Write the JSON object to the file
+		if _, err := writer.WriteString(line); err != nil {
+			return count, fmt.Errorf("failed to write JSON object: %w", err)
+		}
+
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return count, fmt.Errorf("error reading decompressed JSON lines: %w", err)
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return count, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return count, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return count, nil
+}
+
+// CombineJsonArrayFiles combines multiple JSON array files into a single JSON array file.
+// This is useful for merging data from multiple sources or processing large datasets in chunks.
+// It streams the data to minimize memory usage, making it suitable for very large files.
+//
+// Parameters:
+//   - inputFilePaths: An array of paths to JSON array files to combine.
+//   - outputFilePath: The path where the resulting combined JSON array will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB).
+//
+// Returns:
+//   - The count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	count, err := streamloader.CombineJsonArrayFiles(["file1.json", "file2.json"], "combined.json")
+//	// Will merge the arrays from file1.json and file2.json into combined.json
+func (StreamLoader) CombineJsonArrayFiles(inputFilePaths []string, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	totalCount := 0
+	for _, inputPath := range inputFilePaths {
+		// Open the input file
+		inputFile, err := os.Open(inputPath)
+		if err != nil {
+			return totalCount, fmt.Errorf("failed to open input file %s: %w", inputPath, err)
+		}
+
+		// Create a JSON decoder for the input file
+		decoder := json.NewDecoder(bufio.NewReaderSize(inputFile, bufSize))
+
+		// Read the opening bracket
+		t, err := decoder.Token()
+		if err != nil {
+			inputFile.Close()
+			return totalCount, fmt.Errorf("failed to read opening bracket from %s: %w", inputPath, err)
+		}
+		if delim, ok := t.(json.Delim); !ok || delim != '[' {
+			inputFile.Close()
+			return totalCount, fmt.Errorf("expected opening bracket in %s, got %v", inputPath, t)
+		}
+
+		// Process each object in the array
+		fileCount := 0
+		for decoder.More() {
+			// Read the next object
+			var obj json.RawMessage
+			if err := decoder.Decode(&obj); err != nil {
+				inputFile.Close()
+				return totalCount, fmt.Errorf("failed to decode object in %s: %w", inputPath, err)
+			}
+
+			// Write comma before object (except for the first object overall)
+			if totalCount > 0 {
+				if _, err := writer.WriteString(","); err != nil {
+					inputFile.Close()
+					return totalCount, fmt.Errorf("failed to write comma separator: %w", err)
+				}
+			}
+
+			// Write the object
+			if _, err := writer.Write(obj); err != nil {
+				inputFile.Close()
+				return totalCount, fmt.Errorf("failed to write object: %w", err)
+			}
+
+			fileCount++
+			totalCount++
+
+			// Periodically flush for very large files
+			if totalCount%1000 == 0 {
+				if err := writer.Flush(); err != nil {
+					inputFile.Close()
+					return totalCount, fmt.Errorf("failed to flush data: %w", err)
+				}
+			}
+		}
+
+		// Read the closing bracket
+		t, err = decoder.Token()
+		if err != nil {
+			inputFile.Close()
+			return totalCount, fmt.Errorf("failed to read closing bracket from %s: %w", inputPath, err)
+		}
+		if delim, ok := t.(json.Delim); !ok || delim != ']' {
+			inputFile.Close()
+			return totalCount, fmt.Errorf("expected closing bracket in %s, got %v", inputPath, t)
+		}
+
+		// Close the input file
+		inputFile.Close()
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return totalCount, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return totalCount, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return totalCount, nil
+}
+
+// WriteObjectsToJsonArrayFile writes a slice of JavaScript objects directly to a JSON array file.
+// This is a convenience function that combines ObjectsToJsonLines and WriteJsonLinesToArrayFile.
+// It streams the output to minimize memory usage.
+//
+// Parameters:
+//   - objects: An array of JavaScript objects to write to the file.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - bufferSize: Optional buffer size in bytes (default: 64KB).
+//
+// Returns:
+//   - The count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	objects := [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+//	count, err := streamloader.WriteObjectsToJsonArrayFile(objects, "output.json")
+//	// Will write '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]' to output.json
+func (s StreamLoader) WriteObjectsToJsonArrayFile(objects []interface{}, outputFilePath string, bufferSize ...int) (int, error) {
+	// Set default buffer size if not provided
+	bufSize := 64 * 1024 // 64KB default
+	if len(bufferSize) > 0 && bufferSize[0] > 0 {
+		bufSize = bufferSize[0]
+	}
+
+	// Create or truncate the output file
+	file, err := os.Create(outputFilePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer for efficiency
+	writer := bufio.NewWriterSize(file, bufSize)
+	defer writer.Flush()
+
+	// Write the opening bracket of the JSON array
+	if _, err := writer.WriteString("["); err != nil {
+		return 0, fmt.Errorf("failed to write opening bracket: %w", err)
+	}
+
+	// Process each object
+	count := 0
+	for i, obj := range objects {
+		// Write comma separator for all but the first object
+		if i > 0 {
+			if _, err := writer.WriteString(","); err != nil {
+				return count, fmt.Errorf("failed to write comma separator: %w", err)
+			}
+		}
+
+		// Serialize the object to JSON
+		objBytes, err := json.Marshal(obj)
+		if err != nil {
+			return count, fmt.Errorf("failed to encode object at index %d: %w", i, err)
+		}
+
+		// Write the object
+		if _, err := writer.Write(objBytes); err != nil {
+			return count, fmt.Errorf("failed to write object: %w", err)
+		}
+
+		count++
+
+		// Periodically flush for very large datasets
+		if count%1000 == 0 {
+			if err := writer.Flush(); err != nil {
+				return count, fmt.Errorf("failed to flush data: %w", err)
+			}
+		}
+	}
+
+	// Write the closing bracket of the JSON array
+	if _, err := writer.WriteString("]"); err != nil {
+		return count, fmt.Errorf("failed to write closing bracket: %w", err)
+	}
+
+	// Flush any buffered data to the file
+	if err := writer.Flush(); err != nil {
+		return count, fmt.Errorf("failed to flush data to file: %w", err)
+	}
+
+	return count, nil
+}
+
+// WriteCompressedObjectsToJsonArrayFile writes a slice of JavaScript objects to a JSON array file
+// using compression for memory efficiency. The objects are first converted to JSONL format,
+// then compressed with gzip, and finally streamed to the output file.
+//
+// Parameters:
+//   - objects: An array of JavaScript objects to write to the file.
+//   - outputFilePath: The path where the resulting JSON array file will be written.
+//   - compressionLevel: Optional compression level (0-9, default is gzip.DefaultCompression).
+//   - bufferSize: Optional buffer size in bytes (default: 64KB).
+//
+// Returns:
+//   - The count of objects written to the file.
+//   - An error if the operation failed.
+//
+// Example:
+//
+//	objects := [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+//	count, err := streamloader.WriteCompressedObjectsToJsonArrayFile(objects, "output.json")
+//	// Will write a JSON array with the objects to output.json, using compression for efficiency
+func (s StreamLoader) WriteCompressedObjectsToJsonArrayFile(objects []interface{}, outputFilePath string, compressionLevel ...int) (int, error) {
+	// Get compression level, if provided
+	level := gzip.DefaultCompression
+	if len(compressionLevel) > 0 && compressionLevel[0] >= gzip.NoCompression && compressionLevel[0] <= gzip.BestCompression {
+		level = compressionLevel[0]
+	}
+
+	// First compress the objects to JSONL format
+	compressedData, err := s.ObjectsToCompressedJsonLines(objects, level)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compress objects: %w", err)
+	}
+
+	// Then write the compressed data to the output file as a JSON array
+	return s.WriteCompressedJsonLinesToArrayFile(compressedData, outputFilePath)
 }
 
 func init() {

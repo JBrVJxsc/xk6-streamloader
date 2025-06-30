@@ -5,6 +5,8 @@ A k6 extension for efficiently loading large JSON arrays, newline-delimited JSON
 ## Features
 
 - **JSON Support**: Load JSON arrays, NDJSON, and JSON objects
+- **JSON Utilities**: Convert JavaScript objects to JSON lines and stream write JSON arrays to files
+- **Compression Support**: Gzip compression for JSON lines to reduce memory footprint and file size
 - **CSV Support**: Stream CSV files with incremental parsing
 - **Advanced CSV Processing**: Filter, transform, group, and project CSV data in a single pass
 - **Memory Efficient**: Minimal memory footprint with streaming architecture
@@ -61,6 +63,126 @@ export default function () {
     // }
     // The result will be a plain JS object:
     // data.user1, data.user2, etc.
+}
+```
+
+### JSON Utilities
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Sample objects
+    const objects = [
+        { id: 1, name: "Alice", details: { age: 30 } },
+        { id: 2, name: "Bob", active: true },
+        { id: 3, name: "Charlie", tags: ["admin", "user"] }
+    ];
+    
+    // Convert objects to JSON lines (JSONL format)
+    const jsonLines = streamloader.objectsToJsonLines(objects);
+    console.log("JSON Lines:", jsonLines);
+    // Output: {"id":1,"name":"Alice","details":{"age":30}}
+    //         {"id":2,"name":"Bob","active":true}
+    //         {"id":3,"name":"Charlie","tags":["admin","user"]}
+    
+    // Write JSON lines to a JSON array file (streaming)
+    const outputFile = "data.json";
+    const count = streamloader.writeJsonLinesToArrayFile(jsonLines, outputFile);
+    console.log(`Wrote ${count} objects to ${outputFile}`);
+    
+    // Direct write objects to a JSON array file (convenience method)
+    const directFile = "direct.json";
+    const directCount = streamloader.writeObjectsToJsonArrayFile(objects, directFile);
+    console.log(`Directly wrote ${directCount} objects to ${directFile}`);
+    
+    // Combine multiple JSON array files into one (streaming)
+    const combinedFile = "combined.json";
+    const combinedCount = streamloader.combineJsonArrayFiles([outputFile, directFile], combinedFile);
+    console.log(`Combined ${combinedCount} objects into ${combinedFile}`);
+    
+    // Read back the file to verify
+    const fileContent = streamloader.loadText(outputFile);
+    check(fileContent, {
+        'File contains valid JSON array': (content) => {
+            try {
+                const parsed = JSON.parse(content);
+                return Array.isArray(parsed) && parsed.length === objects.length;
+            } catch (e) {
+                return false;
+            }
+        }
+    });
+}
+```
+
+### Compressed JSON Utilities
+
+```js
+import streamloader from 'k6/x/streamloader';
+import { check } from 'k6';
+
+export default function () {
+    // Sample large dataset
+    const objects = [];
+    for (let i = 0; i < 1000; i++) {
+        objects.push({
+            id: i,
+            name: `User-${i}`,
+            email: `user${i}@example.com`,
+            profile: {
+                age: 20 + (i % 50),
+                active: i % 2 === 0,
+                joinDate: new Date().toISOString(),
+                preferences: {
+                    theme: i % 2 === 0 ? 'light' : 'dark',
+                    language: 'en-US'
+                }
+            },
+            tags: [`tag-${i % 10}`, `category-${i % 5}`]
+        });
+    }
+    
+    // Convert objects to compressed JSON lines (gzipped and base64-encoded)
+    // Optional compression level (0-9): 0=no compression, 1=fastest, 9=best compression
+    const compressedJsonLines = streamloader.objectsToCompressedJsonLines(objects, 6);
+    console.log(`Compressed size: ${compressedJsonLines.length} bytes`);
+    
+    // Write compressed JSON lines to a JSON array file
+    // This decompresses data and writes it as a standard JSON array
+    const outputFile = "data.json";
+    const count = streamloader.writeCompressedJsonLinesToArrayFile(compressedJsonLines, outputFile);
+    console.log(`Wrote ${count} objects to ${outputFile}`);
+    
+    // Direct write objects to a JSON array file using compression
+    // This is a convenience function that combines compression and file writing
+    const directFile = "compressed_direct.json";
+    const directCount = streamloader.writeCompressedObjectsToJsonArrayFile(objects, directFile);
+    console.log(`Directly wrote ${directCount} objects to ${directFile}`);
+    
+    // Read back the files to verify
+    const fileContent = streamloader.loadText(outputFile);
+    check(fileContent, {
+        'File contains valid JSON array': (content) => {
+            try {
+                const parsed = JSON.parse(content);
+                return Array.isArray(parsed) && parsed.length === objects.length;
+            } catch (e) {
+                return false;
+            }
+        }
+    });
+    
+    // Compare compression levels
+    const noCompression = streamloader.objectsToCompressedJsonLines(objects, 0).length;
+    const bestSpeed = streamloader.objectsToCompressedJsonLines(objects, 1).length;
+    const bestCompression = streamloader.objectsToCompressedJsonLines(objects, 9).length;
+    
+    console.log(`Compression comparison:
+    - No compression: ${noCompression} bytes
+    - Best speed: ${bestSpeed} bytes
+    - Best compression: ${bestCompression} bytes`);
 }
 ```
 
@@ -229,12 +351,19 @@ export default function () {
 
 - `streamloader.go`: Extension source code with JSON and CSV loading functions
 - `streamloader_test.go`: Go unit tests for both JSON and CSV functionality
+- `jsonl_utils_test.go`: Go unit tests for JSON utilities (JSONL and JSON array)
+- `compressed_jsonl_test.go`: Go unit tests for compressed JSON utilities
 - `streamloader_k6_test.js`: k6 JS test script for both JSON and CSV functionality
 - `process_csv_test.js`: Basic k6 JS test script for the ProcessCsvFile function
 - `advanced_process_csv_test.js`: Advanced k6 JS tests for ProcessCsvFile with complex configurations
 - `edge_case_csv_test.js`: k6 JS tests specifically for CSV edge cases
 - `head_test.js`: k6 JS test script for the Head function
 - `tail_test.js`: k6 JS test script for the Tail function
+- `json_utils_test.js`: k6 JS test script for JSON utilities conversion functions
+- `json_roundtrip_test.js`: k6 JS test script for end-to-end JSON utilities testing
+- `json_memory_test.js`: k6 JS test script for memory efficiency of JSON utilities
+- `compressed_json_test.js`: k6 JS test script for compressed JSON utilities
+- `compression_performance_test.js`: k6 JS test script for comparing compression levels and performance
 - `Makefile`: Build and test automation
 - `generate_large_csv.py`: Script to generate large CSV files for testing
 - `generate_large_file.py`: Script to generate large text files for testing
@@ -276,6 +405,65 @@ export default function () {
 - **Returns**: String containing the entire file content
 - **Throws**: Error if file not found or cannot be read
 
+### streamloader.objectsToJsonLines(objects)
+- **Parameters**: `objects` (array) - Array of JavaScript objects to convert to JSON lines
+- **Returns**: String containing the JSONL representation of the objects
+- **Throws**: Error if any object cannot be serialized to JSON
+- **Description**: Converts a slice of JavaScript objects into JSONL format (one JSON object per line)
+
+### streamloader.objectsToCompressedJsonLines(objects, [compressionLevel])
+- **Parameters**: 
+  - `objects` (array) - Array of JavaScript objects to convert to compressed JSON lines
+  - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1 which is a compromise between speed and size)
+- **Returns**: Base64-encoded string containing the gzip-compressed JSONL data
+- **Throws**: Error if any object cannot be serialized to JSON or compression fails
+- **Description**: Converts objects to JSON lines, compresses with gzip, and base64-encodes the result
+
+### streamloader.writeJsonLinesToArrayFile(jsonLines, outputFilePath, [bufferSize])
+- **Parameters**: 
+  - `jsonLines` (string) - JSONL-formatted data with one JSON object per line
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Number of objects written to the file
+- **Throws**: Error if writing fails or JSON is invalid
+- **Description**: Takes JSONL data and streams it to a file as a JSON array, minimizing memory usage
+
+### streamloader.writeCompressedJsonLinesToArrayFile(compressedJsonLines, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `compressedJsonLines` (string) - Base64-encoded, gzip-compressed JSONL data
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Number of objects written to the file
+- **Throws**: Error if decompression fails, writing fails, or JSON is invalid
+- **Description**: Decompresses the JSONL data and streams it to a file as a JSON array
+
+### streamloader.writeObjectsToJsonArrayFile(objects, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `objects` (array) - Array of JavaScript objects to write to the file
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Number of objects written to the file
+- **Throws**: Error if writing fails or JSON is invalid
+- **Description**: Convenience function that combines objectsToJsonLines and writeJsonLinesToArrayFile
+
+### streamloader.writeCompressedObjectsToJsonArrayFile(objects, outputFilePath, [compressionLevel])
+- **Parameters**:
+  - `objects` (array) - Array of JavaScript objects to write to the file
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `compressionLevel` (int, optional) - Compression level from 0-9 (0=no compression, 1=best speed, 9=best compression, default: -1)
+- **Returns**: Number of objects written to the file
+- **Throws**: Error if compression fails, writing fails, or JSON is invalid
+- **Description**: Compresses objects and streams them to a JSON array file with minimal memory usage
+
+### streamloader.combineJsonArrayFiles(inputFilePaths, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `inputFilePaths` (array) - Array of paths to JSON array files to combine
+  - `outputFilePath` (string) - Path where the combined JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Total number of objects written to the file
+- **Throws**: Error if reading or writing fails, or JSON is invalid
+- **Description**: Combines multiple JSON array files into a single JSON array file, streaming for memory efficiency
+
 ### streamloader.head(filePath, n)
 - **Parameters**: 
   - `filePath` (string) - Path to the file
@@ -313,5 +501,7 @@ Both JSON and CSV loaders are designed for memory efficiency:
 
 - **Streaming Architecture**: Process data incrementally without loading entire files
 - **Buffered I/O**: 64KB buffer size for optimal performance
+- **Compression Support**: Gzip compression to reduce memory footprint and file size
 - **Minimal Memory Footprint**: Consistent memory usage regardless of file size
 - **No Memory Spikes**: Avoid large memory allocations during processing
+- **Configurable Compression Levels**: Balance between speed and memory usage
