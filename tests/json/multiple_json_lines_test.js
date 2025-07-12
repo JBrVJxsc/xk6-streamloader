@@ -290,5 +290,114 @@ export default function () {
     }
   });
   
+  // ---------------------------------------------------------
+  // Test 7: MultipleCompressedJsonLinesToObjects
+  // ---------------------------------------------------------
+  console.log("Testing multipleCompressedJsonLinesToObjects...");
+  
+  // Use the same compressed batches from the earlier test
+  const compressedObjectsResult = streamloader.multipleCompressedJsonLinesToObjects(
+    [compBatch1, compBatch2]);
+  
+  check(compressedObjectsResult, {
+    'multipleCompressedJsonLinesToObjects returns correct count': objects => objects.length === 4,
+    'multipleCompressedJsonLinesToObjects returns array of objects': objects => Array.isArray(objects),
+    'First object has correct structure': objects => 
+      objects[0].id === 5 && objects[0].name === "Eve" && objects[0].department === "HR",
+    'Second object has correct structure': objects => 
+      objects[1].id === 6 && objects[1].name === "Frank" && objects[1].department === "Legal",
+    'Third object has nested array': objects => 
+      objects[2].id === 7 && Array.isArray(objects[2].skills) && objects[2].skills.length === 3,
+    'Fourth object has nested location': objects => 
+      objects[3].id === 8 && objects[3].location && objects[3].location.city === "New York"
+  });
+  
+  console.log(`Successfully decompressed and parsed ${compressedObjectsResult.length} objects`);
+  
+  // Test with mixed batch types (from earlier test)
+  const mixedObjectsResult = streamloader.multipleCompressedJsonLinesToObjects(
+    [typeBatch1, typeBatch2, typeBatch3]);
+  
+  check(mixedObjectsResult, {
+    'Mixed types returns correct count': objects => objects.length === 5,
+    'Contains user objects': objects => 
+      objects[0].type === "user" && objects[1].type === "user",
+    'Contains product objects': objects => 
+      objects[2].type === "product" && objects[3].type === "product",
+    'Contains order object': objects => 
+      objects[4].type === "order" && Array.isArray(objects[4].products)
+  });
+  
+  console.log(`Successfully processed ${mixedObjectsResult.length} mixed-type objects`);
+  
+  // Test with empty array
+  const emptyResult = streamloader.multipleCompressedJsonLinesToObjects([]);
+  check(emptyResult, {
+    'Empty array returns empty result': objects => Array.isArray(objects) && objects.length === 0
+  });
+  
+  // Test error handling with invalid data
+  try {
+    streamloader.multipleCompressedJsonLinesToObjects(["invalid_base64_data!!!"]);
+    check(false, { 'Should have thrown error for invalid data': () => false });
+  } catch (e) {
+    check(true, { 'Correctly throws error for invalid data': () => true });
+    console.log("Correctly handled invalid compressed data");
+  }
+  
+  // ---------------------------------------------------------
+  // Test 8: Compare multipleCompressedJsonLinesToObjects with file-based method
+  // ---------------------------------------------------------
+  console.log("Comparing multipleCompressedJsonLinesToObjects with file-based method...");
+  
+  // Use the objects we got from the new function
+  const objectsFromMemory = compressedObjectsResult;
+  
+  // Compare with objects from the file written earlier
+  const objectsFromFile = JSON.parse(compFileContent);
+  
+  check(true, {
+    'Memory and file methods produce identical results': () => {
+      if (objectsFromMemory.length !== objectsFromFile.length) {
+        console.log(`Length mismatch: memory=${objectsFromMemory.length}, file=${objectsFromFile.length}`);
+        return false;
+      }
+      
+      // Helper function to deep compare objects regardless of key order
+      function deepEqual(obj1, obj2) {
+        if (obj1 === obj2) return true;
+        if (obj1 == null || obj2 == null) return false;
+        if (typeof obj1 !== typeof obj2) return false;
+        
+        if (typeof obj1 === 'object') {
+          const keys1 = Object.keys(obj1).sort();
+          const keys2 = Object.keys(obj2).sort();
+          
+          if (keys1.length !== keys2.length) return false;
+          if (keys1.join(',') !== keys2.join(',')) return false;
+          
+          for (let key of keys1) {
+            if (!deepEqual(obj1[key], obj2[key])) return false;
+          }
+          return true;
+        }
+        
+        return obj1 === obj2;
+      }
+      
+      for (let i = 0; i < objectsFromMemory.length; i++) {
+        if (!deepEqual(objectsFromMemory[i], objectsFromFile[i])) {
+          console.log(`Object ${i} content mismatch`);
+          console.log(`Memory:`, JSON.stringify(objectsFromMemory[i]));
+          console.log(`File:`, JSON.stringify(objectsFromFile[i]));
+          return false;
+        }
+      }
+      return true;
+    }
+  });
+  
+  console.log("Memory vs file comparison completed successfully!");
+
   console.log("All tests completed successfully!");
 }

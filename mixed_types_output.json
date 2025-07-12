@@ -1,0 +1,1 @@
+[{"id":101,"name":"User 1","type":"user"},{"id":102,"name":"User 2","type":"user"},{"id":"P1","name":"Product 1","price":19.99,"type":"product"},{"id":"P2","name":"Product 2","price":29.99,"type":"product"},{"id":"O1","products":["P1","P2"],"total":49.98,"type":"order","userId":101}]

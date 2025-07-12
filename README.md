@@ -318,6 +318,42 @@ export default function () {
             compressedBatches, "large_dataset_output.json");
     }
     
+    // Approach 3: Convert compressed batches directly to JavaScript objects in memory
+    // This is useful when you want to work with the objects directly without writing to a file
+    const objectsFromCompressed = streamloader.multipleCompressedJsonLinesToObjects(
+        [compressedLines1, compressedLines2]);
+    
+    console.log(`Decompressed and parsed ${objectsFromCompressed.length} objects into memory`);
+    
+    // You can now work with the objects directly
+    objectsFromCompressed.forEach((obj, index) => {
+        console.log(`Object ${index}: ${JSON.stringify(obj)}`);
+    });
+    
+    // Verify the objects match what we expect
+    check(objectsFromCompressed, {
+        'Correct number of objects decompressed': objects => objects.length === 4,
+        'First object has correct structure': objects => 
+            objects[0].id === 1 && objects[0].name === "Alice",
+        'Last object has correct structure': objects => 
+            objects[3].id === 4 && objects[3].name === "Dave"
+    });
+    
+    // Use case: Process compressed data from different sources
+    function processCompressedDataFromMultipleSources(compressedSources) {
+        // Each source provides compressed JSON lines data
+        const allObjects = streamloader.multipleCompressedJsonLinesToObjects(compressedSources);
+        
+        // Process the combined objects as needed
+        const processed = allObjects.map(obj => ({
+            ...obj,
+            processed: true,
+            timestamp: new Date().toISOString()
+        }));
+        
+        return processed;
+    }
+    
     // Helper to generate sample data
     function generateDataChunk(startId, count) {
         const chunk = [];
@@ -343,6 +379,92 @@ export default function () {
     // Now you can work with the decompressed objects directly
     console.log(`Decompressed batch 1: ${decompressed1.length} objects`);
     console.log(`Decompressed batch 2: ${decompressed2.length} objects`);
+    
+    // ---------------------------------------------------------
+    // Approach 4: Weighted sampling for dataset balancing
+    // ---------------------------------------------------------
+    
+    // Use case: Balance datasets by controlling representation of each batch
+    // This is useful for machine learning datasets, A/B testing, or statistical sampling
+    
+    console.log("Weighted sampling examples:");
+    
+    // Example data with different batch sizes
+    const smallBatch = [{id: 1, category: "A"}, {id: 2, category: "A"}]; // 2 objects
+    const largeBatch = [ // 5 objects
+        {id: 3, category: "B"}, {id: 4, category: "B"}, {id: 5, category: "B"},
+        {id: 6, category: "B"}, {id: 7, category: "B"}
+    ];
+    
+    const compressedSmall = streamloader.objectsToCompressedJsonLines(smallBatch);
+    const compressedLarge = streamloader.objectsToCompressedJsonLines(largeBatch);
+    
+    // Scenario 1: Equal representation (3 objects from each batch)
+    const balancedWeights = [
+        [compressedSmall, 3], // 2 objects -> 3 objects: [A1, A2, A1]
+        [compressedLarge, 3]  // 5 objects -> 3 objects: [B3, B4, B5]
+    ];
+    
+    const balancedFile = "balanced_dataset.json";
+    const balancedCount = streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
+        balancedWeights, balancedFile);
+    
+    console.log(`Created balanced dataset with ${balancedCount} objects (${balancedCount/2} from each category)`);
+    
+    // Scenario 2: Proportional sampling (1:2 ratio)
+    const proportionalWeights = [
+        [compressedSmall, 2], // 2 objects -> 2 objects: keep both
+        [compressedLarge, 4]  // 5 objects -> 4 objects: keep first 4
+    ];
+    
+    const proportionalFile = "proportional_dataset.json";
+    const proportionalCount = streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
+        proportionalWeights, proportionalFile);
+    
+    console.log(`Created proportional dataset with ${proportionalCount} objects (1:2 ratio)`);
+    
+    // Scenario 3: Oversampling minority class
+    const oversampledWeights = [
+        [compressedSmall, 6], // 2 objects -> 6 objects: [A1, A2, A1, A2, A1, A2]
+        [compressedLarge, 5]  // 5 objects -> 5 objects: keep all
+    ];
+    
+    const oversampledFile = "oversampled_dataset.json";
+    const oversampledCount = streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
+        oversampledWeights, oversampledFile);
+    
+    console.log(`Created oversampled dataset with ${oversampledCount} objects`);
+    
+    // Verify the weighted sampling results
+    const balancedData = JSON.parse(streamloader.loadText(balancedFile));
+    const categoryACounts = balancedData.filter(obj => obj.category === "A").length;
+    const categoryBCounts = balancedData.filter(obj => obj.category === "B").length;
+    
+    console.log(`Balanced dataset: Category A: ${categoryACounts}, Category B: ${categoryBCounts}`);
+    
+    // Real-world use case: Dataset preparation for ML training
+    function prepareTrainingDataset(rawBatches, targetSamplesPerClass) {
+        const weightedBatches = rawBatches.map(([data, className]) => {
+            const compressed = streamloader.objectsToCompressedJsonLines(data);
+            return [compressed, targetSamplesPerClass];
+        });
+        
+        const outputFile = "ml_training_dataset.json";
+        const totalSamples = streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
+            weightedBatches, outputFile);
+        
+        console.log(`Prepared ML dataset: ${totalSamples} samples (${targetSamplesPerClass} per class)`);
+        return outputFile;
+    }
+    
+    // Example usage for ML dataset preparation
+    const rawDataBatches = [
+        [smallBatch, "classA"],
+        [largeBatch, "classB"]
+    ];
+    
+    const mlDatasetFile = prepareTrainingDataset(rawDataBatches, 4);
+    console.log(`ML training dataset ready: ${mlDatasetFile}`);
 }
 ```
 
@@ -543,6 +665,25 @@ export default function () {
   - `outputFilePath` (string) - Path where the JSON array file will be written
   - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
 - **Returns**: Total number of objects written to the file
+
+#### streamloader.multipleCompressedJsonLinesToObjects(compressedJsonLinesArray)
+- **Parameters**:
+  - `compressedJsonLinesArray` (array) - Array of base64-encoded, gzip-compressed JSONL strings
+- **Returns**: Array of parsed JavaScript objects from all compressed batches
+- **Throws**: Error if decompression fails or any line contains invalid JSON
+
+#### streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(weightedCompressedJsonLinesArray, outputFilePath, [bufferSize])
+- **Parameters**:
+  - `weightedCompressedJsonLinesArray` (array) - Array of [compressedJsonLines, weight] pairs where:
+    - `compressedJsonLines` (string) - base64-encoded, gzip-compressed JSONL string
+    - `weight` (number) - target number of objects from this batch
+      - If actual count == weight: keep all objects
+      - If actual count > weight: slice to keep only `weight` objects  
+      - If actual count < weight: duplicate objects cyclically until count == weight
+  - `outputFilePath` (string) - Path where the JSON array file will be written
+  - `bufferSize` (int, optional) - Buffer size in bytes (default: 64KB)
+- **Returns**: Total number of objects written to the file
+- **Throws**: Error if file writing fails, invalid weights, or decompression fails
 
 ### File Functions
 

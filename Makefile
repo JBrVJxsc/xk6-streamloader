@@ -32,7 +32,12 @@ help:
 build:
 	@echo "$(GREEN)Building k6 with streamloader extension...$(NC)"
 	@mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && xk6 build $(K6_VERSION) --with $(MODULE_NAME)=../
+	@if command -v xk6 >/dev/null 2>&1; then \
+		cd $(BUILD_DIR) && xk6 build $(K6_VERSION) --with $(MODULE_NAME)=../; \
+	else \
+		echo "$(YELLOW)xk6 not found in PATH, trying with go run...$(NC)"; \
+		cd $(BUILD_DIR) && go run go.k6.io/xk6@latest build $(K6_VERSION) --with $(MODULE_NAME)=../; \
+	fi
 	@echo "$(GREEN)✓ Build complete: $(K6_BINARY)$(NC)"
 
 # Setup test environment
@@ -97,6 +102,18 @@ test-k6: build generate-test-files prepare-test-env
 		$(K6_BINARY) run --quiet tests/json/roundtrip_test.js || exit 1; \
 	else \
 		echo "$(RED)Error: tests/json/roundtrip_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/json/multiple_json_lines_test.js" ]; then \
+		$(K6_BINARY) run --quiet tests/json/multiple_json_lines_test.js || exit 1; \
+	else \
+		echo "$(RED)Error: tests/json/multiple_json_lines_test.js not found$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f "tests/json/weighted_multiple_json_lines_test.js" ]; then \
+		$(K6_BINARY) run --quiet tests/json/weighted_multiple_json_lines_test.js || exit 1; \
+	else \
+		echo "$(RED)Error: tests/json/weighted_multiple_json_lines_test.js not found$(NC)"; \
 		exit 1; \
 	fi
 	@if [ -f "tests/json/head_test.js" ]; then \

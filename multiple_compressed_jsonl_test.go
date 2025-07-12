@@ -8,8 +8,19 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+// Helper function to create temporary files for testing
+func createTempFile(t *testing.T) string {
+	file, err := os.CreateTemp("", "streamloader_test_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	file.Close()
+	return file.Name()
+}
 
 func TestWriteMultipleJsonLinesToArrayFile(t *testing.T) {
 	loader := StreamLoader{}
@@ -369,4 +380,508 @@ func TestMultipleCompressedJsonLinesRoundtrip(t *testing.T) {
 			t.Errorf("Result: %v", resultMap)
 		}
 	}
+}
+
+func TestMultipleCompressedJsonLinesToObjects(t *testing.T) {
+	loader := StreamLoader{}
+
+	// Create test objects
+	objects1 := []interface{}{
+		map[string]interface{}{"id": 1, "name": "Alice"},
+		map[string]interface{}{"id": 2, "name": "Bob"},
+	}
+
+	objects2 := []interface{}{
+		map[string]interface{}{"id": 3, "name": "Charlie", "details": map[string]interface{}{"age": 30}},
+		map[string]interface{}{"id": 4, "name": "Dave"},
+	}
+
+	// Compress the objects to get compressed JSON lines strings
+	compressed1, err := loader.ObjectsToCompressedJsonLines(objects1)
+	if err != nil {
+		t.Fatalf("Failed to compress objects1: %v", err)
+	}
+
+	compressed2, err := loader.ObjectsToCompressedJsonLines(objects2)
+	if err != nil {
+		t.Fatalf("Failed to compress objects2: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		compressedStrings []string
+		expectCount       int
+		expectError       bool
+	}{
+		{
+			name:              "Empty array",
+			compressedStrings: []string{},
+			expectCount:       0,
+		},
+		{
+			name:              "Single batch",
+			compressedStrings: []string{compressed1},
+			expectCount:       2,
+		},
+		{
+			name:              "Multiple batches",
+			compressedStrings: []string{compressed1, compressed2},
+			expectCount:       4,
+		},
+		{
+			name:              "With empty strings",
+			compressedStrings: []string{compressed1, "", compressed2},
+			expectCount:       4,
+		},
+		{
+			name:              "Invalid base64",
+			compressedStrings: []string{compressed1, "invalid_base64!!!"},
+			expectError:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := loader.MultipleCompressedJsonLinesToObjects(tt.compressedStrings)
+
+			if (err != nil) != tt.expectError {
+				t.Errorf("MultipleCompressedJsonLinesToObjects() error = %v, expectError %v", err, tt.expectError)
+				return
+			}
+
+			if !tt.expectError {
+				// Check count is correct
+				if len(result) != tt.expectCount {
+					t.Errorf("MultipleCompressedJsonLinesToObjects() returned %d objects, want %d", len(result), tt.expectCount)
+				}
+
+				// For the multiple batches test, verify all objects were correctly decompressed
+				if tt.name == "Multiple batches" {
+					allObjects := append(objects1, objects2...)
+					for i, obj := range allObjects {
+						originalJSON, _ := json.Marshal(obj)
+						resultJSON, _ := json.Marshal(result[i])
+
+						var originalMap, resultMap map[string]interface{}
+						json.Unmarshal(originalJSON, &originalMap)
+						json.Unmarshal(resultJSON, &resultMap)
+
+						if !reflect.DeepEqual(originalMap, resultMap) {
+							t.Errorf("Object at index %d doesn't match after decompression", i)
+							t.Errorf("Original: %v", originalMap)
+							t.Errorf("Result: %v", resultMap)
+						}
+					}
+				}
+
+				// For single batch test, verify the objects match
+				if tt.name == "Single batch" {
+					for i, obj := range objects1 {
+						originalJSON, _ := json.Marshal(obj)
+						resultJSON, _ := json.Marshal(result[i])
+
+						var originalMap, resultMap map[string]interface{}
+						json.Unmarshal(originalJSON, &originalMap)
+						json.Unmarshal(resultJSON, &resultMap)
+
+						if !reflect.DeepEqual(originalMap, resultMap) {
+							t.Errorf("Object at index %d doesn't match after decompression", i)
+						}
+					}
+				}
+			}
+		})
+	}
+
+	// Test roundtrip with complex data
+	t.Run("Complex data roundtrip", func(t *testing.T) {
+		complexObjects := []interface{}{
+			map[string]interface{}{
+				"id":   5,
+				"name": "Eve",
+				"profile": map[string]interface{}{
+					"age": 28,
+					"address": map[string]interface{}{
+						"street": "123 Main St",
+						"city":   "New York",
+					},
+					"hobbies": []string{"reading", "cycling"},
+				},
+			},
+			map[string]interface{}{
+				"id":          6,
+				"description": "Product with \"quotes\" and commas, plus other chars: !@#$%^&*()",
+				"active":      true,
+				"score":       95.7,
+			},
+		}
+
+		// Split into two batches
+		batch1 := complexObjects[:1]
+		batch2 := complexObjects[1:]
+
+		compressedBatch1, err := loader.ObjectsToCompressedJsonLines(batch1)
+		if err != nil {
+			t.Fatalf("Failed to compress batch1: %v", err)
+		}
+
+		compressedBatch2, err := loader.ObjectsToCompressedJsonLines(batch2)
+		if err != nil {
+			t.Fatalf("Failed to compress batch2: %v", err)
+		}
+
+		// Test the new function
+		result, err := loader.MultipleCompressedJsonLinesToObjects([]string{compressedBatch1, compressedBatch2})
+		if err != nil {
+			t.Fatalf("MultipleCompressedJsonLinesToObjects failed: %v", err)
+		}
+
+		if len(result) != len(complexObjects) {
+			t.Errorf("Expected %d objects, got %d", len(complexObjects), len(result))
+		}
+
+		// Verify each object matches
+		for i, originalObj := range complexObjects {
+			originalJSON, _ := json.Marshal(originalObj)
+			resultJSON, _ := json.Marshal(result[i])
+
+			var originalMap, resultMap map[string]interface{}
+			json.Unmarshal(originalJSON, &originalMap)
+			json.Unmarshal(resultJSON, &resultMap)
+
+			if !reflect.DeepEqual(originalMap, resultMap) {
+				t.Errorf("Complex object at index %d doesn't match after decompression", i)
+				t.Errorf("Original: %v", originalMap)
+				t.Errorf("Result: %v", resultMap)
+			}
+		}
+	})
+}
+
+func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
+	loader := StreamLoader{}
+
+	// Create test objects for different scenarios
+	batch1Objects := []interface{}{
+		map[string]interface{}{"id": 1, "name": "Alice"},
+		map[string]interface{}{"id": 2, "name": "Bob"},
+	}
+
+	batch2Objects := []interface{}{
+		map[string]interface{}{"id": 3, "name": "Charlie"},
+		map[string]interface{}{"id": 4, "name": "Dave"},
+		map[string]interface{}{"id": 5, "name": "Eve"},
+		map[string]interface{}{"id": 6, "name": "Frank"},
+		map[string]interface{}{"id": 7, "name": "Grace"},
+	}
+
+	batch3Objects := []interface{}{
+		map[string]interface{}{"id": 8, "name": "Henry"},
+	}
+
+	// Compress the test batches
+	compressedBatch1, err := loader.ObjectsToCompressedJsonLines(batch1Objects)
+	if err != nil {
+		t.Fatalf("Failed to compress batch1: %v", err)
+	}
+
+	compressedBatch2, err := loader.ObjectsToCompressedJsonLines(batch2Objects)
+	if err != nil {
+		t.Fatalf("Failed to compress batch2: %v", err)
+	}
+
+	compressedBatch3, err := loader.ObjectsToCompressedJsonLines(batch3Objects)
+	if err != nil {
+		t.Fatalf("Failed to compress batch3: %v", err)
+	}
+
+	t.Run("Empty array", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile([][]interface{}{}, tempFile)
+		if err != nil {
+			t.Errorf("Expected no error for empty array, got: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Expected count 0 for empty array, got: %d", count)
+		}
+
+		// Verify file contains empty JSON array
+		content, _ := os.ReadFile(tempFile)
+		if string(content) != "[]" {
+			t.Errorf("Expected empty JSON array, got: %s", string(content))
+		}
+	})
+
+	t.Run("Equal weight (count == weight)", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// batch1 has 2 objects, weight 2 -> keep all 2 objects
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, 2},
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 2 {
+			t.Errorf("Expected count 2, got: %d", count)
+		}
+
+		// Verify output
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 2 {
+			t.Errorf("Expected 2 objects in output, got: %d", len(result))
+		}
+		if result[0]["name"] != "Alice" || result[1]["name"] != "Bob" {
+			t.Error("Objects not preserved correctly")
+		}
+	})
+
+	t.Run("Oversample (count > weight)", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// batch2 has 5 objects, weight 3 -> slice to keep first 3 objects
+		weightedBatches := [][]interface{}{
+			{compressedBatch2, 3},
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 3 {
+			t.Errorf("Expected count 3, got: %d", count)
+		}
+
+		// Verify output contains first 3 objects
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 3 {
+			t.Errorf("Expected 3 objects in output, got: %d", len(result))
+		}
+		expectedNames := []string{"Charlie", "Dave", "Eve"}
+		for i, expected := range expectedNames {
+			if result[i]["name"] != expected {
+				t.Errorf("Expected name %s at index %d, got: %s", expected, i, result[i]["name"])
+			}
+		}
+	})
+
+	t.Run("Undersample (count < weight)", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// batch3 has 1 object, weight 4 -> duplicate cyclically: [Henry, Henry, Henry, Henry]
+		weightedBatches := [][]interface{}{
+			{compressedBatch3, 4},
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 4 {
+			t.Errorf("Expected count 4, got: %d", count)
+		}
+
+		// Verify output contains 4 duplicated objects
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 4 {
+			t.Errorf("Expected 4 objects in output, got: %d", len(result))
+		}
+		for i := 0; i < 4; i++ {
+			if result[i]["name"] != "Henry" || result[i]["id"].(float64) != 8 {
+				t.Errorf("Expected duplicated Henry object at index %d, got: %v", i, result[i])
+			}
+		}
+	})
+
+	t.Run("Complex duplication pattern", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// batch1 has 2 objects [Alice, Bob], weight 5 -> [Alice, Bob, Alice, Bob, Alice]
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, 5},
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 5 {
+			t.Errorf("Expected count 5, got: %d", count)
+		}
+
+		// Verify cyclic duplication pattern
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 5 {
+			t.Errorf("Expected 5 objects in output, got: %d", len(result))
+		}
+		expectedPattern := []string{"Alice", "Bob", "Alice", "Bob", "Alice"}
+		for i, expected := range expectedPattern {
+			if result[i]["name"] != expected {
+				t.Errorf("Expected name %s at index %d, got: %s", expected, i, result[i]["name"])
+			}
+		}
+	})
+
+	t.Run("Multiple weighted batches", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Combine multiple batches with different weights
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, 1}, // 2 objects -> 1 object (Alice)
+			{compressedBatch2, 2}, // 5 objects -> 2 objects (Charlie, Dave)
+			{compressedBatch3, 3}, // 1 object -> 3 objects (Henry, Henry, Henry)
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 6 {
+			t.Errorf("Expected count 6, got: %d", count)
+		}
+
+		// Verify combined output
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 6 {
+			t.Errorf("Expected 6 objects in output, got: %d", len(result))
+		}
+
+		// Check specific pattern: Alice, Charlie, Dave, Henry, Henry, Henry
+		expectedNames := []string{"Alice", "Charlie", "Dave", "Henry", "Henry", "Henry"}
+		for i, expected := range expectedNames {
+			if result[i]["name"] != expected {
+				t.Errorf("Expected name %s at index %d, got: %s", expected, i, result[i]["name"])
+			}
+		}
+	})
+
+	t.Run("Zero and negative weights", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Test with zero and negative weights (should be skipped)
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, 0},  // Should be skipped
+			{compressedBatch2, -1}, // Should be skipped
+			{compressedBatch3, 2},  // Should produce 2 Henry objects
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if count != 2 {
+			t.Errorf("Expected count 2, got: %d", count)
+		}
+
+		// Verify only valid weighted batch was processed
+		var result []map[string]interface{}
+		content, _ := os.ReadFile(tempFile)
+		json.Unmarshal(content, &result)
+
+		if len(result) != 2 {
+			t.Errorf("Expected 2 objects in output, got: %d", len(result))
+		}
+		for i := 0; i < 2; i++ {
+			if result[i]["name"] != "Henry" {
+				t.Errorf("Expected Henry at index %d, got: %s", i, result[i]["name"])
+			}
+		}
+	})
+
+	t.Run("Invalid input format", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Test with invalid entry format
+		weightedBatches := [][]interface{}{
+			{compressedBatch1}, // Missing weight
+		}
+
+		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err == nil {
+			t.Error("Expected error for invalid entry format")
+		}
+		if !strings.Contains(err.Error(), "expected [compressedJsonLines, weight]") {
+			t.Errorf("Expected specific error message, got: %v", err)
+		}
+	})
+
+	t.Run("Invalid weight type", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Test with invalid weight type
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, "invalid"}, // String instead of number
+		}
+
+		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err == nil {
+			t.Error("Expected error for invalid weight type")
+		}
+		if !strings.Contains(err.Error(), "expected number") {
+			t.Errorf("Expected specific error message, got: %v", err)
+		}
+	})
+
+	t.Run("Invalid base64 data", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Test with invalid base64 data
+		weightedBatches := [][]interface{}{
+			{"invalid-base64-data!!!", 2},
+		}
+
+		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err == nil {
+			t.Error("Expected error for invalid base64 data")
+		}
+		if !strings.Contains(err.Error(), "failed to decode base64 data") {
+			t.Errorf("Expected base64 decode error, got: %v", err)
+		}
+	})
+
+	t.Run("Float weight compatibility", func(t *testing.T) {
+		tempFile := createTempFile(t)
+		defer os.Remove(tempFile)
+
+		// Test with float weight (common from JavaScript)
+		weightedBatches := [][]interface{}{
+			{compressedBatch1, 3.0}, // Float weight should be converted to int
+		}
+
+		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
+		if err != nil {
+			t.Errorf("Unexpected error with float weight: %v", err)
+		}
+		if count != 3 {
+			t.Errorf("Expected count 3, got: %d", count)
+		}
+	})
 }
