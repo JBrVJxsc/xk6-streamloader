@@ -1316,14 +1316,14 @@ func (StreamLoader) WriteMultipleCompressedJsonLinesToArrayFile(compressedJsonLi
 	return totalCount, nil
 }
 
-// WriteWeightedMultipleCompressedJsonLinesToArrayFile takes multiple weighted compressed JSON lines strings,
+// WriteWeightedMultipleCompressedJsonLinesToArrayFile takes multiple weighted compressed JSON lines arrays,
 // applies weight-based sampling/duplication, and writes them as a single JSON array to a file.
-// This is useful for balancing datasets by adjusting the representation of each batch.
+// This is useful for balancing datasets by adjusting the representation of each batch group.
 //
 // Parameters:
-//   - weightedCompressedJsonLinesArray: An array of [compressedJsonLines, weight] pairs where:
-//     * compressedJsonLines: base64-encoded, gzip-compressed JSONL string
-//     * weight: target number of objects from this batch
+//   - weightedMultipleCompressedJsonLinesArray: An array of [multipleCompressedJsonLines, weight] pairs where:
+//     * multipleCompressedJsonLines: array of base64-encoded, gzip-compressed JSONL strings
+//     * weight: target number of objects from this batch group
 //       - If actual count == weight: keep all objects
 //       - If actual count > weight: slice to keep only `weight` objects
 //       - If actual count < weight: duplicate objects cyclically until count == weight
@@ -1336,15 +1336,15 @@ func (StreamLoader) WriteMultipleCompressedJsonLinesToArrayFile(compressedJsonLi
 //
 // Example:
 //
-//	// Batch 1: 2 objects, weight 3 -> duplicate to get 3 objects: [obj1, obj2, obj1]
-//	// Batch 2: 5 objects, weight 3 -> slice to get 3 objects: [obj1, obj2, obj3]
+//	// Group 1: multiple compressed batches, weight 5
+//	// Group 2: multiple compressed batches, weight 3
 //	weightedBatches := [][]interface{}{
-//	    {"H4sIAAAAAAACA6tWykvMTVWyUrJS...", 3}, // [compressedData, weight]
-//	    {"H4sIAAAAAAAAA6tWSk4uSixJVbJS...", 3},
+//	    {[]string{"H4sIAAAAAAACA...", "H4sIBBBBBBBCA..."}, 5}, // [array of compressed data, weight]
+//	    {[]string{"H4sICCCCCCCCA..."}, 3},
 //	}
 //	count, err := streamloader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(
 //	    weightedBatches, "weighted_output.json")
-func (StreamLoader) WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedCompressedJsonLinesArray [][]interface{}, outputFilePath string, bufferSize ...int) (int, error) {
+func (StreamLoader) WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedMultipleCompressedJsonLinesArray [][]interface{}, outputFilePath string, bufferSize ...int) (int, error) {
 	// Set default buffer size if not provided
 	bufSize := 64 * 1024 // 64KB default
 	if len(bufferSize) > 0 && bufferSize[0] > 0 {
@@ -1370,16 +1370,35 @@ func (StreamLoader) WriteWeightedMultipleCompressedJsonLinesToArrayFile(weighted
 	totalCount := 0
 	isFirstObject := true
 
-	// Process each weighted compressed JSON lines entry
-	for batchIndex, weightedEntry := range weightedCompressedJsonLinesArray {
+	// Process each weighted multiple compressed JSON lines entry
+	for groupIndex, weightedEntry := range weightedMultipleCompressedJsonLinesArray {
 		if len(weightedEntry) != 2 {
-			return totalCount, fmt.Errorf("invalid weighted entry at index %d: expected [compressedJsonLines, weight], got %d elements", batchIndex, len(weightedEntry))
+			return totalCount, fmt.Errorf("invalid weighted entry at index %d: expected [multipleCompressedJsonLines, weight], got %d elements", groupIndex, len(weightedEntry))
 		}
 
-		// Extract compressed JSON lines and weight
-		compressedJsonLines, ok := weightedEntry[0].(string)
+		// Extract multiple compressed JSON lines array and weight
+		multipleCompressedJsonLinesInterface, ok := weightedEntry[0].([]interface{})
 		if !ok {
-			return totalCount, fmt.Errorf("invalid compressed JSON lines at index %d: expected string, got %T", batchIndex, weightedEntry[0])
+			// Try []string for direct string array
+			if stringArray, stringOk := weightedEntry[0].([]string); stringOk {
+				// Convert []string to []interface{}
+				multipleCompressedJsonLinesInterface = make([]interface{}, len(stringArray))
+				for i, s := range stringArray {
+					multipleCompressedJsonLinesInterface[i] = s
+				}
+			} else {
+				return totalCount, fmt.Errorf("invalid multiple compressed JSON lines at index %d: expected array, got %T", groupIndex, weightedEntry[0])
+			}
+		}
+
+		// Convert to string array
+		var multipleCompressedJsonLines []string
+		for i, item := range multipleCompressedJsonLinesInterface {
+			if str, ok := item.(string); ok {
+				multipleCompressedJsonLines = append(multipleCompressedJsonLines, str)
+			} else {
+				return totalCount, fmt.Errorf("invalid compressed JSON lines at group %d, item %d: expected string, got %T", groupIndex, i, item)
+			}
 		}
 
 		var weight int
@@ -1393,65 +1412,68 @@ func (StreamLoader) WriteWeightedMultipleCompressedJsonLinesToArrayFile(weighted
 		case int32:
 			weight = int(v)
 		default:
-			return totalCount, fmt.Errorf("invalid weight at index %d: expected number, got %T", batchIndex, weightedEntry[1])
+			return totalCount, fmt.Errorf("invalid weight at index %d: expected number, got %T", groupIndex, weightedEntry[1])
 		}
 
 		if weight <= 0 {
 			continue // Skip entries with zero or negative weight
 		}
 
-		if compressedJsonLines == "" {
-			continue // Skip empty compressed data
-		}
-
-		// Decode base64 data
-		compressedData, err := base64.StdEncoding.DecodeString(compressedJsonLines)
-		if err != nil {
-			return totalCount, fmt.Errorf("failed to decode base64 data at index %d: %w", batchIndex, err)
-		}
-
-		// Set up the gzip reader to decompress the data
-		gzReader, err := gzip.NewReader(bytes.NewReader(compressedData))
-		if err != nil {
-			return totalCount, fmt.Errorf("failed to create gzip reader at index %d: %w", batchIndex, err)
-		}
-
-		// First pass: collect all JSON lines from this batch
-		var jsonLines []string
-		scanner := bufio.NewScanner(gzReader)
-		scanner.Buffer(make([]byte, bufSize), 10*bufSize)
-
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue // Skip empty lines
+		// Process all compressed JSON lines in this group to collect objects
+		var allJsonLines []string
+		for compressedIndex, compressedJsonLines := range multipleCompressedJsonLines {
+			if compressedJsonLines == "" {
+				continue // Skip empty strings
 			}
-			jsonLines = append(jsonLines, line)
-		}
 
-		if err := scanner.Err(); err != nil {
+			// Decode base64 data
+			compressedData, err := base64.StdEncoding.DecodeString(compressedJsonLines)
+			if err != nil {
+				return totalCount, fmt.Errorf("failed to decode base64 data at group %d, compressed %d: %w", groupIndex, compressedIndex, err)
+			}
+
+			// Set up the gzip reader to decompress the data
+			gzReader, err := gzip.NewReader(bytes.NewReader(compressedData))
+			if err != nil {
+				return totalCount, fmt.Errorf("failed to create gzip reader at group %d, compressed %d: %w", groupIndex, compressedIndex, err)
+			}
+
+			// Process the decompressed JSON lines
+			scanner := bufio.NewScanner(gzReader)
+			scanner.Buffer(make([]byte, bufSize), 10*bufSize)
+
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" {
+					continue // Skip empty lines
+				}
+				allJsonLines = append(allJsonLines, line)
+			}
+
+			if err := scanner.Err(); err != nil {
+				gzReader.Close()
+				return totalCount, fmt.Errorf("error reading decompressed JSON lines at group %d, compressed %d: %w", groupIndex, compressedIndex, err)
+			}
 			gzReader.Close()
-			return totalCount, fmt.Errorf("error reading decompressed JSON lines at index %d: %w", batchIndex, err)
-		}
-		gzReader.Close()
-
-		if len(jsonLines) == 0 {
-			continue // Skip batches with no valid JSON lines
 		}
 
-		// Apply weight-based sampling/duplication
+		if len(allJsonLines) == 0 {
+			continue // Skip groups with no valid JSON lines
+		}
+
+		// Apply weight-based sampling/duplication on the combined group
 		var weightedLines []string
-		if len(jsonLines) == weight {
+		if len(allJsonLines) == weight {
 			// Case 1: count == weight, keep all
-			weightedLines = jsonLines
-		} else if len(jsonLines) > weight {
+			weightedLines = allJsonLines
+		} else if len(allJsonLines) > weight {
 			// Case 2: count > weight, slice to keep only `weight` objects
-			weightedLines = jsonLines[:weight]
+			weightedLines = allJsonLines[:weight]
 		} else {
 			// Case 3: count < weight, duplicate cyclically until count == weight
 			weightedLines = make([]string, weight)
 			for i := 0; i < weight; i++ {
-				weightedLines[i] = jsonLines[i%len(jsonLines)]
+				weightedLines[i] = allJsonLines[i%len(allJsonLines)]
 			}
 		}
 

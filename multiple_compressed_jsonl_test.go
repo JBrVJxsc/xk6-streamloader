@@ -620,7 +620,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// batch1 has 2 objects, weight 2 -> keep all 2 objects
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, 2},
+			{[]string{compressedBatch1}, 2},
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -650,7 +650,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// batch2 has 5 objects, weight 3 -> slice to keep first 3 objects
 		weightedBatches := [][]interface{}{
-			{compressedBatch2, 3},
+			{[]string{compressedBatch2}, 3},
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -683,7 +683,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// batch3 has 1 object, weight 4 -> duplicate cyclically: [Henry, Henry, Henry, Henry]
 		weightedBatches := [][]interface{}{
-			{compressedBatch3, 4},
+			{[]string{compressedBatch3}, 4},
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -715,7 +715,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// batch1 has 2 objects [Alice, Bob], weight 5 -> [Alice, Bob, Alice, Bob, Alice]
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, 5},
+			{[]string{compressedBatch1}, 5},
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -748,9 +748,9 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Combine multiple batches with different weights
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, 1}, // 2 objects -> 1 object (Alice)
-			{compressedBatch2, 2}, // 5 objects -> 2 objects (Charlie, Dave)
-			{compressedBatch3, 3}, // 1 object -> 3 objects (Henry, Henry, Henry)
+			{[]string{compressedBatch1}, 1}, // 2 objects -> 1 object (Alice)
+			{[]string{compressedBatch2}, 2}, // 5 objects -> 2 objects (Charlie, Dave)
+			{[]string{compressedBatch3}, 3}, // 1 object -> 3 objects (Henry, Henry, Henry)
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -785,9 +785,9 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Test with zero and negative weights (should be skipped)
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, 0},  // Should be skipped
-			{compressedBatch2, -1}, // Should be skipped
-			{compressedBatch3, 2},  // Should produce 2 Henry objects
+			{[]string{compressedBatch1}, 0},  // Should be skipped
+			{[]string{compressedBatch2}, -1}, // Should be skipped
+			{[]string{compressedBatch3}, 2},  // Should produce 2 Henry objects
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -819,14 +819,14 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Test with invalid entry format
 		weightedBatches := [][]interface{}{
-			{compressedBatch1}, // Missing weight
+			{[]string{compressedBatch1}}, // Missing weight
 		}
 
 		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
 		if err == nil {
 			t.Error("Expected error for invalid entry format")
 		}
-		if !strings.Contains(err.Error(), "expected [compressedJsonLines, weight]") {
+		if !strings.Contains(err.Error(), "expected [multipleCompressedJsonLines, weight]") {
 			t.Errorf("Expected specific error message, got: %v", err)
 		}
 	})
@@ -837,7 +837,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Test with invalid weight type
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, "invalid"}, // String instead of number
+			{[]string{compressedBatch1}, "invalid"}, // String instead of number
 		}
 
 		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -855,7 +855,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Test with invalid base64 data
 		weightedBatches := [][]interface{}{
-			{"invalid-base64-data!!!", 2},
+			{[]string{"invalid-base64-data!!!"}, 2},
 		}
 
 		_, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)
@@ -873,7 +873,7 @@ func TestWriteWeightedMultipleCompressedJsonLinesToArrayFile(t *testing.T) {
 
 		// Test with float weight (common from JavaScript)
 		weightedBatches := [][]interface{}{
-			{compressedBatch1, 3.0}, // Float weight should be converted to int
+			{[]string{compressedBatch1}, 3.0}, // Float weight should be converted to int
 		}
 
 		count, err := loader.WriteWeightedMultipleCompressedJsonLinesToArrayFile(weightedBatches, tempFile)

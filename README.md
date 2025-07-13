@@ -399,10 +399,11 @@ export default function () {
     const compressedSmall = streamloader.objectsToCompressedJsonLines(smallBatch);
     const compressedLarge = streamloader.objectsToCompressedJsonLines(largeBatch);
     
-    // Scenario 1: Equal representation (3 objects from each batch)
+    // Scenario 1: Equal representation (3 objects from each category)
+    // Each entry is [array of compressed strings, weight]
     const balancedWeights = [
-        [compressedSmall, 3], // 2 objects -> 3 objects: [A1, A2, A1]
-        [compressedLarge, 3]  // 5 objects -> 3 objects: [B3, B4, B5]
+        [[compressedSmall], 3], // Group with 2 objects -> 3 objects: [A1, A2, A1]
+        [[compressedLarge], 3]  // Group with 5 objects -> 3 objects: [B3, B4, B5]
     ];
     
     const balancedFile = "balanced_dataset.json";
@@ -413,8 +414,8 @@ export default function () {
     
     // Scenario 2: Proportional sampling (1:2 ratio)
     const proportionalWeights = [
-        [compressedSmall, 2], // 2 objects -> 2 objects: keep both
-        [compressedLarge, 4]  // 5 objects -> 4 objects: keep first 4
+        [[compressedSmall], 2], // Group with 2 objects -> 2 objects: keep both
+        [[compressedLarge], 4]  // Group with 5 objects -> 4 objects: keep first 4
     ];
     
     const proportionalFile = "proportional_dataset.json";
@@ -425,8 +426,8 @@ export default function () {
     
     // Scenario 3: Oversampling minority class
     const oversampledWeights = [
-        [compressedSmall, 6], // 2 objects -> 6 objects: [A1, A2, A1, A2, A1, A2]
-        [compressedLarge, 5]  // 5 objects -> 5 objects: keep all
+        [[compressedSmall], 6], // Group with 2 objects -> 6 objects: [A1, A2, A1, A2, A1, A2]
+        [[compressedLarge], 5]  // Group with 5 objects -> 5 objects: keep all
     ];
     
     const oversampledFile = "oversampled_dataset.json";
@@ -446,7 +447,7 @@ export default function () {
     function prepareTrainingDataset(rawBatches, targetSamplesPerClass) {
         const weightedBatches = rawBatches.map(([data, className]) => {
             const compressed = streamloader.objectsToCompressedJsonLines(data);
-            return [compressed, targetSamplesPerClass];
+            return [[compressed], targetSamplesPerClass]; // Wrap compressed in array
         });
         
         const outputFile = "ml_training_dataset.json";
@@ -672,11 +673,11 @@ export default function () {
 - **Returns**: Array of parsed JavaScript objects from all compressed batches
 - **Throws**: Error if decompression fails or any line contains invalid JSON
 
-#### streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(weightedCompressedJsonLinesArray, outputFilePath, [bufferSize])
+#### streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(weightedMultipleCompressedJsonLinesArray, outputFilePath, [bufferSize])
 - **Parameters**:
-  - `weightedCompressedJsonLinesArray` (array) - Array of [compressedJsonLines, weight] pairs where:
-    - `compressedJsonLines` (string) - base64-encoded, gzip-compressed JSONL string
-    - `weight` (number) - target number of objects from this batch
+  - `weightedMultipleCompressedJsonLinesArray` (array) - Array of [multipleCompressedJsonLines, weight] pairs where:
+    - `multipleCompressedJsonLines` (array) - array of base64-encoded, gzip-compressed JSONL strings
+    - `weight` (number) - target number of objects from this batch group
       - If actual count == weight: keep all objects
       - If actual count > weight: slice to keep only `weight` objects  
       - If actual count < weight: duplicate objects cyclically until count == weight

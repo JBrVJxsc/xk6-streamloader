@@ -40,7 +40,7 @@ export default function () {
   console.log("Test 2: Equal weight (count == weight)");
   
   const equalWeightBatches = [
-    [compBatch1, 2] // 2 objects, weight 2 -> keep all
+    [[compBatch1], 2] // Group with 2 objects, weight 2 -> keep all
   ];
   
   const equalWeightFile = "test_equal_weight.json";
@@ -67,7 +67,7 @@ export default function () {
   console.log("Test 3: Oversample (count > weight)");
   
   const oversampleBatches = [
-    [compBatch2, 3] // 5 objects, weight 3 -> slice to first 3
+    [[compBatch2], 3] // Group with 5 objects, weight 3 -> slice to first 3
   ];
   
   const oversampleFile = "test_oversample.json";
@@ -95,7 +95,7 @@ export default function () {
   console.log("Test 4: Undersample (count < weight)");
   
   const undersampleBatches = [
-    [compBatch3, 4] // 1 object, weight 4 -> duplicate to 4
+    [[compBatch3], 4] // Group with 1 object, weight 4 -> duplicate to 4
   ];
   
   const undersampleFile = "test_undersample.json";
@@ -122,7 +122,7 @@ export default function () {
   console.log("Test 5: Complex duplication pattern");
   
   const complexBatches = [
-    [compBatch1, 5] // 2 objects [Alice, Bob], weight 5 -> [Alice, Bob, Alice, Bob, Alice]
+    [[compBatch1], 5] // Group with 2 objects [Alice, Bob], weight 5 -> [Alice, Bob, Alice, Bob, Alice]
   ];
   
   const complexFile = "test_complex_pattern.json";
@@ -152,9 +152,9 @@ export default function () {
   console.log("Test 6: Multiple weighted batches");
   
   const multiBatches = [
-    [compBatch1, 1], // 2 objects -> 1 object (Alice)
-    [compBatch2, 2], // 5 objects -> 2 objects (Charlie, Dave)
-    [compBatch3, 3]  // 1 object -> 3 objects (Henry, Henry, Henry)
+    [[compBatch1], 1], // Group with 2 objects -> 1 object (Alice)
+    [[compBatch2], 2], // Group with 5 objects -> 2 objects (Charlie, Dave)
+    [[compBatch3], 3]  // Group with 1 object -> 3 objects (Henry, Henry, Henry)
   ];
   
   const multiFile = "test_multiple_weighted.json";
@@ -185,9 +185,9 @@ export default function () {
   console.log("Test 7: Zero and negative weights");
   
   const skipBatches = [
-    [compBatch1, 0],  // Should be skipped
-    [compBatch2, -1], // Should be skipped  
-    [compBatch3, 2]   // Should produce 2 Henry objects
+    [[compBatch1], 0],  // Should be skipped
+    [[compBatch2], -1], // Should be skipped  
+    [[compBatch3], 2]   // Should produce 2 Henry objects
   ];
   
   const skipFile = "test_skip_weights.json";
@@ -237,7 +237,7 @@ export default function () {
   // Test invalid compressed data
   try {
     streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
-      [["invalid-base64-data!!!", 2]], "test_error.json");
+      [[["invalid-base64-data!!!"], 2]], "test_error.json");
     check(false, { 'Should have thrown error for invalid data': () => false });
   } catch (e) {
     check(true, { 'Correctly throws error for invalid compressed data': () => true });
@@ -247,7 +247,7 @@ export default function () {
   // Test invalid weight type
   try {
     streamloader.writeWeightedMultipleCompressedJsonLinesToArrayFile(
-      [[compBatch1, "invalid"]], "test_error2.json");
+      [[[compBatch1], "invalid"]], "test_error2.json");
     check(false, { 'Should have thrown error for invalid weight type': () => false });
   } catch (e) {
     check(true, { 'Correctly throws error for invalid weight type': () => true });
@@ -262,8 +262,8 @@ export default function () {
   // Use equal weights to match regular function behavior
   const regularBatches = [compBatch1, compBatch2];
   const weightedEqualBatches = [
-    [compBatch1, 2], // Keep all 2 objects
-    [compBatch2, 5]  // Keep all 5 objects
+    [[compBatch1], 2], // Keep all 2 objects from group
+    [[compBatch2], 5]  // Keep all 5 objects from group
   ];
   
   const regularFile = "test_regular_comparison.json";
